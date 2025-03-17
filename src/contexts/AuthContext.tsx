@@ -1,8 +1,7 @@
-
 import React, { createContext, useContext, useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { toast } from '@/components/ui/use-toast';
-import { auth, googleProvider } from '@/lib/firebase';
+import { toast } from '../components/ui/use-toast';
+import { auth, googleProvider } from '../lib/firebase';
 import { signInWithPopup, GoogleAuthProvider } from 'firebase/auth';
 
 interface User {
@@ -14,7 +13,7 @@ interface User {
 interface AuthContextType {
   user: User | null;
   isAuthenticated: boolean;
-  login: (email: string, password: string) => Promise<void>;
+  login: (emailOrUsername: string, password: string) => Promise<void>;
   loginWithGoogle: () => Promise<void>;
   register: (name: string, email: string, password: string) => Promise<void>;
   logout: () => void;
@@ -56,11 +55,12 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const login = async (email: string, password: string) => {
     try {
       // For demo purposes, using hardcoded credentials
-      if (email === 'paullo.celullar2020@gmail.com' && password === 'paulocell@admin') {
+      // Allow login with either email or username 'paulocell'
+      if ((email === 'paullo.celullar2020@gmail.com' || email === 'paulocell') && password === 'paulocell@admin') {
         const user = {
           id: '1',
           name: 'Paulo Cell Admin',
-          email: email
+          email: email === 'paulocell' ? 'paullo.celullar2020@gmail.com' : email
         };
         setUser(user);
         localStorage.setItem('pauloCell_user', JSON.stringify(user));
