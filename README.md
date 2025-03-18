@@ -1,73 +1,161 @@
-<<<<<<< HEAD
-# Welcome to your Lovable project
+# Paulo Cell - Sistema de Gerenciamento para Assistência Técnica
 
-## Project info
+Sistema completo para gerenciamento de assistência técnica de celulares e dispositivos eletrônicos, desenvolvido com React 18.3, Vite 5.4 e TailwindCSS 3.4.
 
-**URL**: https://lovable.dev/projects/1384dcd9-e8e9-4692-b81d-d0acfbe1cfdf
+## 📋 Sobre o Projeto
 
-## How can I edit this code?
+O Paulo Cell é um sistema de gerenciamento para lojas de assistência técnica de celulares e dispositivos eletrônicos. O sistema permite o cadastro e controle de clientes, dispositivos, serviços e estoque, com uma interface moderna e intuitiva.
 
-There are several ways of editing your application.
+### 🚀 Funcionalidades
 
-**Use Lovable**
+- **Gestão de Clientes**
+  - Cadastro de clientes com informações de contato
+  - Visualização de histórico de serviços por cliente
+  - Pesquisa e filtragem de clientes
 
-Simply visit the [Lovable Project](https://lovable.dev/projects/1384dcd9-e8e9-4692-b81d-d0acfbe1cfdf) and start prompting.
+- **Controle de Dispositivos**
+  - Cadastro detalhado de dispositivos (marca, modelo, IMEI, etc.)
+  - Registro de senhas e padrões de acesso (com visualização gráfica)
+  - Associação com proprietários (opcional)
 
-Changes made via Lovable will be committed automatically to this repo.
+- **Gerenciamento de Serviços**
+  - Cadastro de serviços com descrição detalhada
+  - Controle de status (em espera, em andamento, concluído, entregue)
+  - Cálculo automático de valores (peças + mão de obra)
+  - Seleção de peças do estoque
+  - Cadastro de novos itens de estoque diretamente da tela de serviço
+  - Definição de prioridade e garantia
+  - Seleção de cliente e dispositivo opcional
 
-**Use your preferred IDE**
+- **Controle de Estoque**
+  - Cadastro de peças e acessórios
+  - Controle de quantidade em estoque
+  - Alertas de estoque baixo
+  - Geração automática de SKU
 
-If you want to work locally using your own IDE, you can clone this repo and push changes. Pushed changes will also be reflected in Lovable.
+- **Dashboard**
+  - Visualização rápida de serviços em andamento
+  - Indicadores de desempenho
 
-The only requirement is having Node.js & npm installed - [install with nvm](https://github.com/nvm-sh/nvm#installing-and-updating)
+## 🌳 Estrutura do Projeto
 
-Follow these steps:
-
-```sh
-# Step 1: Clone the repository using the project's Git URL.
-git clone <YOUR_GIT_URL>
-
-# Step 2: Navigate to the project directory.
-cd <YOUR_PROJECT_NAME>
-
-# Step 3: Install the necessary dependencies.
-npm i
-
-# Step 4: Start the development server with auto-reloading and an instant preview.
-npm run dev
+```
+paulocell-10/
+├── public/               # Arquivos públicos
+├── src/                  # Código fonte
+│   ├── components/       # Componentes reutilizáveis
+│   │   ├── layout/       # Componentes de layout (MainLayout)
+│   │   └── ui/           # Componentes de UI (buttons, cards, etc.)
+│   ├── lib/              # Utilitários e funções
+│   ├── contexts/         # Contextos React
+│   ├── hooks/            # Hooks personalizados
+│   └── pages/            # Páginas principais da aplicação
+│       ├── Dashboard.tsx # Página inicial/dashboard
+│       ├── NewCustomer.tsx  # Cadastro de cliente
+│       ├── EditCustomer.tsx # Edição de cliente
+│       ├── CustomerDetail.tsx # Detalhes do cliente
+│       ├── Customers.tsx  # Lista de clientes
+│       ├── NewDevice.tsx  # Cadastro de dispositivo
+│       ├── EditDevice.tsx # Edição de dispositivo
+│       ├── DeviceDetail.tsx # Detalhes do dispositivo
+│       ├── Devices.tsx    # Lista de dispositivos
+│       ├── NewService.tsx # Cadastro de serviço
+│       ├── EditService.tsx # Edição de serviço
+│       ├── ServiceDetail.tsx # Detalhes do serviço
+│       ├── Services.tsx   # Lista de serviços
+│       └── Inventory.tsx  # Gestão de estoque
+├── package.json         # Dependências e scripts
+└── README.md            # Este arquivo
 ```
 
-**Edit a file directly in GitHub**
+## 🔧 Requisitos e Instalação
 
-- Navigate to the desired file(s).
-- Click the "Edit" button (pencil icon) at the top right of the file view.
-- Make your changes and commit the changes.
+### Pré-requisitos
 
-**Use GitHub Codespaces**
+- Node.js (versão 18.x ou superior recomendada)
+- npm (v10+) ou yarn
 
-- Navigate to the main page of your repository.
-- Click on the "Code" button (green button) near the top right.
-- Select the "Codespaces" tab.
-- Click on "New codespace" to launch a new Codespace environment.
-- Edit files directly within the Codespace and commit and push your changes once you're done.
+### Instalação
 
-## What technologies are used for this project?
+1. Clone o repositório:
+   ```bash
+   git clone https://github.com/Nomade-PJ/paulocell-10.git
+   cd paulocell-10
+   ```
 
-This project is built with .
+2. Instale as dependências:
+   ```bash
+   npm install
+   # ou
+   yarn install
+   ```
 
-- Vite
-- TypeScript
-- React
-- shadcn-ui
-- Tailwind CSS
+3. Inicie o servidor de desenvolvimento:
+   ```bash
+   npm run dev
+   # ou
+   yarn dev
+   ```
 
-## How can I deploy this project?
+4. Acesse o aplicativo em seu navegador:
+   ```
+   http://localhost:5173
+   ```
 
-Simply open [Lovable](https://lovable.dev/projects/1384dcd9-e8e9-4692-b81d-d0acfbe1cfdf) and click on Share -> Publish.
+### Execução Rápida (Windows)
 
-## I want to use a custom domain - is that possible?
+Para iniciar o projeto rapidamente no Windows, você pode usar o arquivo `run-dev.bat` incluído no projeto:
 
-We don't support custom domains (yet). If you want to deploy your project under your own domain then we recommend using Netlify. Visit our docs for more details: [Custom domains](https://docs.lovable.dev/tips-tricks/custom-domain/)
-=======
-# paulocell-10
->>>>>>> 4f2ce509cc62495ba7eb36632dd587eef5576a73
+1. Abra o Explorador de Arquivos e navegue até a pasta do projeto
+2. Dê um duplo clique em `run-dev.bat`
+3. O servidor de desenvolvimento será iniciado automaticamente
+
+## 💾 Armazenamento de Dados
+
+O sistema utiliza o **localStorage** do navegador para armazenar os dados, permitindo a execução sem necessidade de um servidor de banco de dados. Todos os dados são salvos localmente no dispositivo do usuário.
+
+Os dados são organizados nas seguintes chaves:
+- `pauloCell_customers` - Dados dos clientes
+- `pauloCell_devices` - Dados dos dispositivos
+- `pauloCell_services` - Dados dos serviços
+- `pauloCell_inventory` - Dados do estoque
+
+## 📱 Responsividade
+
+O sistema é totalmente responsivo, adaptando-se a diferentes tamanhos de tela, desde celulares até desktops.
+
+## 🛠️ Tecnologias Utilizadas
+
+- **React 18.3** - Biblioteca JavaScript para construção de interfaces
+- **Vite 5.4** - Ferramenta de build otimizada para desenvolvimento
+- **TailwindCSS 3.4** - Framework CSS utilitário
+- **shadcn/ui** - Componentes de UI baseados em Radix UI
+- **Lucide Icons** - Conjunto de ícones
+- **React Router 6.26** - Roteamento
+- **UUID 11.1** - Geração de IDs únicos
+- **Framer Motion 12.4** - Animações
+- **Sonner 1.5** - Notificações toast
+
+## 📦 Versão e Build
+
+Para criar uma versão de produção do aplicativo:
+
+```bash
+npm run build
+# ou
+yarn build
+```
+
+Os arquivos de build serão gerados na pasta `dist`, prontos para implantação em qualquer servidor web estático.
+
+## 🤝 Contribuição
+
+Contribuições são bem-vindas! Sinta-se à vontade para abrir uma issue ou enviar um pull request.
+
+## 📄 Licença
+
+Este projeto está sob a licença MIT. Veja o arquivo LICENSE para mais detalhes.
+
+---
+
+Desenvolvido por [Nomade-PJ](https://github.com/Nomade-PJ)

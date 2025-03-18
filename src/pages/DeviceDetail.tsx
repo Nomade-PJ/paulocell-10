@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect } from 'react';
 import MainLayout from '@/components/layout/MainLayout';
 import { useParams, useNavigate } from 'react-router-dom';
@@ -13,11 +12,14 @@ import {
   XCircleIcon,
   CalendarIcon,
   UserIcon,
-  DollarSignIcon
+  DollarSignIcon,
+  PencilIcon
 } from 'lucide-react';
 import { motion } from 'framer-motion';
 import { toast } from 'sonner';
 import { Badge } from '@/components/ui/badge';
+import PatternLock from '@/components/PatternLock';
+import PatternLockDisplay from '@/components/PatternLockDisplay';
 
 const DeviceDetail: React.FC = () => {
   const { id } = useParams<{ id: string }>();
@@ -72,18 +74,21 @@ const DeviceDetail: React.FC = () => {
   
   const handleDelete = () => {
     try {
-      const savedDevices = localStorage.getItem('pauloCell_devices');
-      if (savedDevices) {
-        let devices = JSON.parse(savedDevices);
-        devices = devices.filter((d: any) => d.id !== id);
-        localStorage.setItem('pauloCell_devices', JSON.stringify(devices));
-      }
+      // Import the moveDeviceToTrash function
+      const { moveDeviceToTrash } = require('@/lib/device-trash-utils');
       
-      toast.success(`Dispositivo removido com sucesso`);
-      navigate('/devices');
+      // Move the device to trash instead of deleting it directly
+      const success = moveDeviceToTrash(id);
+      
+      if (success) {
+        toast.success(`Dispositivo movido para a lixeira`);
+        navigate('/devices');
+      } else {
+        toast.error('Erro ao mover dispositivo para a lixeira');
+      }
     } catch (error) {
-      console.error('Error deleting device:', error);
-      toast.error('Erro ao excluir dispositivo');
+      console.error('Error moving device to trash:', error);
+      toast.error('Erro ao mover dispositivo para a lixeira');
     }
   };
   
@@ -142,7 +147,14 @@ const DeviceDetail: React.FC = () => {
                 <p className="text-muted-foreground">{device.serialNumber}</p>
               </div>
               <div className="flex gap-2">
-                {customer && (
+                <Button 
+                  variant="destructive" 
+                  size="sm" 
+                  onClick={handleDelete}
+                >
+                  Excluir dispositivo
+                </Button>
+                {device && device.owner && (
                   <Button 
                     variant="outline" 
                     size="sm"
@@ -156,14 +168,7 @@ const DeviceDetail: React.FC = () => {
                   size="icon"
                   onClick={() => navigate(`/devices/edit/${device.id}`)}
                 >
-                  <PenIcon size={16} />
-                </Button>
-                <Button 
-                  variant="outline" 
-                  size="icon"
-                  onClick={handleDelete}
-                >
-                  <TrashIcon size={16} />
+                  <PencilIcon size={16} />
                 </Button>
               </div>
             </div>
@@ -219,6 +224,23 @@ const DeviceDetail: React.FC = () => {
               <div>
                 <h3 className="text-sm font-medium text-muted-foreground mb-1">Capacidade</h3>
                 <p className="font-medium">{device.capacity || 'Não especificada'}</p>
+              </div>
+              <div>
+                <h3 className="text-sm font-medium text-muted-foreground mb-1">Senha</h3>
+                {device.passwordType === 'none' ? (
+                  <p className="font-medium">Nenhuma</p>
+                ) : device.passwordType === 'pin' ? (
+                  <p className="font-medium">PIN: {device.password}</p>
+                ) : device.passwordType === 'pattern' ? (
+                  <div>
+                    <p className="font-medium mb-2">Padrão:</p>
+                    <PatternLockDisplay pattern={device.password} size={160} />
+                  </div>
+                ) : device.passwordType === 'password' ? (
+                  <p className="font-medium">Senha: {device.password}</p>
+                ) : (
+                  <p className="font-medium">Não especificada</p>
+                )}
               </div>
             </div>
             

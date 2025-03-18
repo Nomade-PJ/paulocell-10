@@ -8,11 +8,17 @@ import { toast } from 'sonner';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { Textarea } from '@/components/ui/textarea';
+import PatternLock from '@/components/PatternLock';
 
 const EditDevice: React.FC = () => {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
   const [loading, setLoading] = useState(true);
+  const [customers, setCustomers] = useState<any[]>([]);
+  const [device, setDevice] = useState<any>(null);
+  const [manualOwnerName, setManualOwnerName] = useState<string>('');
+  const [passwordValue, setPasswordValue] = useState<string>('');
   const [formData, setFormData] = useState({
     brand: '',
     model: '',
@@ -21,11 +27,11 @@ const EditDevice: React.FC = () => {
     status: '',
     purchaseDate: '',
     owner: '',
+    ownerName: '',
+    passwordType: 'none',
     notes: ''
   });
   
-  const [customers, setCustomers] = useState<any[]>([]);
-
   useEffect(() => {
     // Load device data from localStorage based on ID
     const loadDeviceData = () => {
@@ -36,6 +42,7 @@ const EditDevice: React.FC = () => {
           const foundDevice = devices.find((d: any) => d.id === id);
           
           if (foundDevice) {
+            setDevice(foundDevice);
             setFormData({
               brand: foundDevice.brand || '',
               model: foundDevice.model || '',
@@ -44,8 +51,20 @@ const EditDevice: React.FC = () => {
               status: foundDevice.status || '',
               purchaseDate: foundDevice.purchaseDate || '',
               owner: foundDevice.owner || '',
+              ownerName: foundDevice.ownerName || '',
+              passwordType: foundDevice.passwordType || 'none',
               notes: foundDevice.notes || ''
             });
+            
+            // Se temos ownerName mas não owner, foi um nome manual
+            if (foundDevice.ownerName && !foundDevice.owner) {
+              setManualOwnerName(foundDevice.ownerName);
+            }
+            
+            // Carregar a senha existente
+            if (foundDevice.password) {
+              setPasswordValue(foundDevice.password);
+            }
           } else {
             toast.error('Dispositivo não encontrado');
             navigate('/devices');
@@ -78,10 +97,38 @@ const EditDevice: React.FC = () => {
 
   const handleSelectChange = (name: string, value: string) => {
     setFormData({ ...formData, [name]: value });
+    
+    if (name === 'owner') {
+      const selectedCustomer = customers.find((c: any) => c.id === value);
+      if (selectedCustomer) {
+        setFormData(prev => ({
+          ...prev,
+          ownerName: selectedCustomer.name
+        }));
+      }
+    }
   };
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
+    
+    // Validate required fields (owner is now optional)
+    if (!formData.type || !formData.model) {
+      toast.error("Por favor, preencha todos os campos obrigatórios.");
+      return;
+    }
+    
+    // Validate password based on type
+    if (formData.passwordType !== 'none' && !passwordValue) {
+      toast.error(`Por favor, preencha a ${formData.passwordType === 'pin' ? 'PIN' : 
+                                           formData.passwordType === 'pattern' ? 'Padrão' : 'Senha'}.`);
+      return;
+    }
+    
+    if (formData.passwordType === 'pin' && !/^\d{4,6}$/.test(passwordValue)) {
+      toast.error("O PIN deve conter entre 4 e 6 dígitos numéricos.");
+      return;
+    }
     
     try {
       // Get existing devices
@@ -100,14 +147,24 @@ const EditDevice: React.FC = () => {
         return;
       }
       
-      // Get customer name
-      const customer = customers.find(c => c.id === formData.owner);
+      // Set ownerName for devices with no owner selected but with manually entered owner name
+      let finalOwnerName = formData.ownerName;
+      if (!formData.owner && manualOwnerName.trim()) {
+        finalOwnerName = manualOwnerName;
+      } else if (!formData.owner && !manualOwnerName.trim()) {
+        finalOwnerName = ''; // Empty if no owner is selected and no manual name provided
+      }
       
       // Create updated device data
       const updatedDevice = {
         ...devices[deviceIndex],
         ...formData,
-        ownerName: customer?.name || 'Proprietário não encontrado',
+        ownerName: finalOwnerName,
+        // Make owner undefined if empty string to maintain consistency with optional owner
+        owner: formData.owner || undefined,
+        // Add password information
+        passwordType: formData.passwordType,
+        password: formData.passwordType !== 'none' ? passwordValue : '',
         updatedAt: new Date().toISOString()
       };
       
@@ -237,6 +294,64 @@ const EditDevice: React.FC = () => {
               </div>
               
               <div>
+                <Label htmlFor="passwordType">Cadastrar Senha</Label>
+                <Select 
+                  value={formData.passwordType} 
+                  onValueChange={(value) => handleSelectChange('passwordType', value)}
+                >
+                  <SelectTrigger id="passwordType">
+                    <SelectValue placeholder="Tipo de senha" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="none">Nenhum</SelectItem>
+                    <SelectItem value="pin">PIN</SelectItem>
+                    <SelectItem value="pattern">Padrão</SelectItem>
+                    <SelectItem value="password">Senha</SelectItem>
+                  </SelectContent>
+                </Select>
+                
+                {formData.passwordType === 'pin' && (
+                  <div className="pt-2">
+                    <Label htmlFor="password">PIN</Label>
+                    <Input
+                      id="password"
+                      type="number"
+                      value={passwordValue}
+                      onChange={(e) => setPasswordValue(e.target.value)}
+                      placeholder="Digite o PIN (4-6 dígitos)"
+                      maxLength={6}
+                    />
+                    <p className="text-xs text-muted-foreground mt-1">PIN deve conter entre 4 e 6 dígitos numéricos.</p>
+                  </div>
+                )}
+                
+                {formData.passwordType === 'pattern' && (
+                  <div className="pt-2">
+                    <Label htmlFor="password">Padrão</Label>
+                    <div className="flex justify-center items-center mt-2">
+                      <PatternLock
+                        value={passwordValue}
+                        onChange={(value) => setPasswordValue(value)}
+                        size={200}
+                      />
+                    </div>
+                  </div>
+                )}
+                
+                {formData.passwordType === 'password' && (
+                  <div className="pt-2">
+                    <Label htmlFor="password">Senha</Label>
+                    <Input
+                      id="password"
+                      value={passwordValue}
+                      onChange={(e) => setPasswordValue(e.target.value)}
+                      placeholder="Digite a senha alfanumérica"
+                    />
+                  </div>
+                )}
+              </div>
+              
+              <div>
                 <Label htmlFor="purchaseDate">Data de Compra</Label>
                 <Input 
                   id="purchaseDate" 
@@ -248,22 +363,42 @@ const EditDevice: React.FC = () => {
               </div>
               
               <div>
-                <Label htmlFor="owner">Proprietário</Label>
-                <Select 
-                  value={formData.owner} 
-                  onValueChange={(value) => handleSelectChange('owner', value)}
-                >
-                  <SelectTrigger>
-                    <SelectValue placeholder="Selecione o proprietário" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {customers.map((customer) => (
-                      <SelectItem key={customer.id} value={customer.id}>
-                        {customer.name}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
+                <Label htmlFor="owner">Proprietário (opcional)</Label>
+                <div className="space-y-2">
+                  <Select 
+                    value={formData.owner} 
+                    onValueChange={(value) => handleSelectChange('owner', value)}
+                  >
+                    <SelectTrigger id="owner">
+                      <SelectValue placeholder="Selecione o proprietário" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {customers.length > 0 ? (
+                        customers.map((customer) => (
+                          <SelectItem key={customer.id} value={customer.id}>
+                            {customer.name}
+                          </SelectItem>
+                        ))
+                      ) : (
+                        <SelectItem value="no-customers" disabled>
+                          Nenhum cliente cadastrado
+                        </SelectItem>
+                      )}
+                    </SelectContent>
+                  </Select>
+                  
+                  {!formData.owner && (
+                    <div className="pt-2">
+                      <Label htmlFor="manualOwnerName">Nome do proprietário</Label>
+                      <Input
+                        id="manualOwnerName"
+                        value={manualOwnerName}
+                        onChange={(e) => setManualOwnerName(e.target.value)}
+                        placeholder="Digite o nome do proprietário"
+                      />
+                    </div>
+                  )}
+                </div>
               </div>
             </div>
           </div>

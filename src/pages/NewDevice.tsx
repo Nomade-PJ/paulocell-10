@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect } from 'react';
 import MainLayout from '@/components/layout/MainLayout';
 import { useNavigate, useLocation } from 'react-router-dom';
@@ -12,12 +11,15 @@ import { Input } from '@/components/ui/input';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Textarea } from '@/components/ui/textarea';
 import { v4 as uuidv4 } from 'uuid';
+import PatternLock from '@/components/PatternLock';
 
 const NewDevice: React.FC = () => {
   const navigate = useNavigate();
   const location = useLocation();
   const [customers, setCustomers] = useState<any[]>([]);
   const customerId = location.state?.customerId;
+  const [manualOwnerName, setManualOwnerName] = useState<string>('');
+  const [passwordValue, setPasswordValue] = useState<string>('');
   const [formData, setFormData] = useState({
     id: uuidv4(),
     owner: customerId || '',
@@ -29,6 +31,8 @@ const NewDevice: React.FC = () => {
     status: '',
     color: '',
     capacity: '',
+    passwordType: 'none',
+    password: '',
     purchaseDate: '',
     notes: '',
     createdAt: new Date().toISOString(),
@@ -78,9 +82,21 @@ const NewDevice: React.FC = () => {
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     
-    // Validate required fields
-    if (!formData.owner || !formData.type || !formData.model) {
+    // Validate required fields (owner is now optional)
+    if (!formData.type || !formData.model) {
       toast.error("Por favor, preencha todos os campos obrigatórios.");
+      return;
+    }
+    
+    // Validate password based on type
+    if (formData.passwordType !== 'none' && !passwordValue) {
+      toast.error(`Por favor, preencha a ${formData.passwordType === 'pin' ? 'PIN' : 
+                                            formData.passwordType === 'pattern' ? 'Padrão' : 'Senha'}.`);
+      return;
+    }
+    
+    if (formData.passwordType === 'pin' && !/^\d{4,6}$/.test(passwordValue)) {
+      toast.error("O PIN deve conter entre 4 e 6 dígitos numéricos.");
       return;
     }
     
@@ -89,8 +105,26 @@ const NewDevice: React.FC = () => {
       const savedDevices = localStorage.getItem('pauloCell_devices');
       let devices = savedDevices ? JSON.parse(savedDevices) : [];
       
+      // Set ownerName for devices with no owner selected but with manually entered owner name
+      let finalOwnerName = formData.ownerName;
+      if (!formData.owner && manualOwnerName.trim()) {
+        finalOwnerName = manualOwnerName;
+      } else if (!formData.owner && !manualOwnerName.trim()) {
+        finalOwnerName = ''; // Empty if no owner is selected and no manual name provided
+      }
+      
+      // Add the new device with correct owner information and password
+      const deviceData = {
+        ...formData,
+        ownerName: finalOwnerName,
+        // Make owner undefined if empty string to maintain consistency with optional owner
+        owner: formData.owner || undefined,
+        // Add password information
+        password: formData.passwordType !== 'none' ? passwordValue : '',
+      };
+      
       // Add the new device
-      devices.push(formData);
+      devices.push(deviceData);
       
       // Save updated devices list to localStorage
       localStorage.setItem('pauloCell_devices', JSON.stringify(devices));
@@ -133,28 +167,42 @@ const NewDevice: React.FC = () => {
           <form onSubmit={handleSubmit} className="space-y-6">
             <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
               <div className="space-y-2">
-                <Label htmlFor="owner">Proprietário *</Label>
-                <Select 
-                  value={formData.owner} 
-                  onValueChange={(value) => handleSelectChange('owner', value)}
-                >
-                  <SelectTrigger id="owner">
-                    <SelectValue placeholder="Selecione o proprietário" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {customers.length > 0 ? (
-                      customers.map((customer) => (
-                        <SelectItem key={customer.id} value={customer.id}>
-                          {customer.name}
+                <Label htmlFor="owner">Proprietário (opcional)</Label>
+                <div className="space-y-2">
+                  <Select 
+                    value={formData.owner} 
+                    onValueChange={(value) => handleSelectChange('owner', value)}
+                  >
+                    <SelectTrigger id="owner">
+                      <SelectValue placeholder="Selecione o proprietário" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {customers.length > 0 ? (
+                        customers.map((customer) => (
+                          <SelectItem key={customer.id} value={customer.id}>
+                            {customer.name}
+                          </SelectItem>
+                        ))
+                      ) : (
+                        <SelectItem value="no-customers" disabled>
+                          Nenhum cliente cadastrado
                         </SelectItem>
-                      ))
-                    ) : (
-                      <SelectItem value="no-customers" disabled>
-                        Nenhum cliente cadastrado
-                      </SelectItem>
-                    )}
-                  </SelectContent>
-                </Select>
+                      )}
+                    </SelectContent>
+                  </Select>
+                  
+                  {!formData.owner && (
+                    <div className="pt-2">
+                      <Label htmlFor="manualOwnerName">Nome do proprietário</Label>
+                      <Input
+                        id="manualOwnerName"
+                        value={manualOwnerName}
+                        onChange={(e) => setManualOwnerName(e.target.value)}
+                        placeholder="Digite o nome do proprietário"
+                      />
+                    </div>
+                  )}
+                </div>
               </div>
               
               <div className="space-y-2">
@@ -261,6 +309,64 @@ const NewDevice: React.FC = () => {
                     <SelectItem value="1TB">1TB</SelectItem>
                   </SelectContent>
                 </Select>
+              </div>
+              
+              <div className="space-y-2">
+                <Label htmlFor="passwordType">Cadastrar Senha</Label>
+                <Select 
+                  value={formData.passwordType} 
+                  onValueChange={(value) => handleSelectChange('passwordType', value)}
+                >
+                  <SelectTrigger id="passwordType">
+                    <SelectValue placeholder="Tipo de senha" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="none">Nenhum</SelectItem>
+                    <SelectItem value="pin">PIN</SelectItem>
+                    <SelectItem value="pattern">Padrão</SelectItem>
+                    <SelectItem value="password">Senha</SelectItem>
+                  </SelectContent>
+                </Select>
+                
+                {formData.passwordType === 'pin' && (
+                  <div className="pt-2">
+                    <Label htmlFor="password">PIN</Label>
+                    <Input
+                      id="password"
+                      type="number"
+                      value={passwordValue}
+                      onChange={(e) => setPasswordValue(e.target.value)}
+                      placeholder="Digite o PIN (4-6 dígitos)"
+                      maxLength={6}
+                    />
+                    <p className="text-xs text-muted-foreground mt-1">PIN deve conter entre 4 e 6 dígitos numéricos.</p>
+                  </div>
+                )}
+                
+                {formData.passwordType === 'pattern' && (
+                  <div className="pt-2">
+                    <Label htmlFor="password">Padrão</Label>
+                    <div className="flex justify-center items-center mt-2">
+                      <PatternLock
+                        value={passwordValue}
+                        onChange={(value) => setPasswordValue(value)}
+                        size={200}
+                      />
+                    </div>
+                  </div>
+                )}
+                
+                {formData.passwordType === 'password' && (
+                  <div className="pt-2">
+                    <Label htmlFor="password">Senha</Label>
+                    <Input
+                      id="password"
+                      value={passwordValue}
+                      onChange={(e) => setPasswordValue(e.target.value)}
+                      placeholder="Digite a senha alfanumérica"
+                    />
+                  </div>
+                )}
               </div>
               
               <div className="space-y-2">

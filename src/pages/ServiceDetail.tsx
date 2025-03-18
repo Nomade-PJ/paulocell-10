@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect } from 'react';
 import MainLayout from '@/components/layout/MainLayout';
 import { useParams, useNavigate } from 'react-router-dom';
@@ -6,7 +5,6 @@ import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
 import { ArrowLeftIcon, PenIcon, TrashIcon, ClockIcon, ActivityIcon, CheckCircleIcon, PackageIcon } from 'lucide-react';
 import { motion } from 'framer-motion';
-import { useToast } from '@/components/ui/use-toast';
 import { Badge } from '@/components/ui/badge';
 import { toast } from 'sonner';
 
@@ -87,9 +85,9 @@ const services = [
 const ServiceDetail: React.FC = () => {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
-  const { toast } = useToast();
   const [service, setService] = useState<any>(null);
   const [loading, setLoading] = useState(true);
+  const [updateText, setUpdateText] = useState('');
   
   // Load service data from localStorage
   useEffect(() => {
@@ -100,28 +98,43 @@ const ServiceDetail: React.FC = () => {
         const savedServices = localStorage.getItem('pauloCell_services');
         if (savedServices) {
           const services = JSON.parse(savedServices);
-          const foundService = services.find((s: any) => s.id === id);
+          let foundService = services.find((s: any) => s.id === id);
           
           if (foundService) {
+            // Verifica se o serviço deve ser marcado como concluído
+            if (
+              foundService.estimatedCompletion && 
+              foundService.status !== 'completed' && 
+              foundService.status !== 'delivered'
+            ) {
+              const currentDate = new Date();
+              const [day, month, year] = foundService.estimatedCompletion.split('/').map(Number);
+              const estimatedDate = new Date(year, month - 1, day); // Mês em JS é 0-indexed
+              
+              // Se a data atual for posterior à data estimada, atualizar para concluído
+              if (currentDate > estimatedDate) {
+                foundService = { ...foundService, status: 'completed' };
+                
+                // Atualiza a lista completa de serviços no localStorage
+                const updatedServices = services.map((s: any) => 
+                  s.id === id ? foundService : s
+                );
+                localStorage.setItem('pauloCell_services', JSON.stringify(updatedServices));
+                
+                toast.info("O serviço foi marcado como concluído pois a data estimada foi ultrapassada.");
+              }
+            }
+            
             setService(foundService);
           } else {
-            toast({
-              title: "Serviço não encontrado",
-              description: "O serviço que você está procurando não existe ou foi removido.",
-            });
+            toast.error("Serviço não encontrado.");
           }
         } else {
-          toast({
-            title: "Nenhum serviço cadastrado",
-            description: "Não há serviços cadastrados no sistema.",
-          });
+          toast.error("Não há serviços cadastrados.");
         }
       } catch (error) {
         console.error('Error loading service data:', error);
-        toast({
-          title: "Erro ao carregar dados",
-          description: "Ocorreu um erro ao carregar os dados do serviço.",
-        });
+        toast.error("Ocorreu um erro ao carregar os dados do serviço.");
       } finally {
         setLoading(false);
       }
@@ -159,18 +172,12 @@ const ServiceDetail: React.FC = () => {
         const updatedServices = services.filter((s: any) => s.id !== id);
         localStorage.setItem('pauloCell_services', JSON.stringify(updatedServices));
         
-        toast({
-          title: "Serviço excluído",
-          description: `${service.type} para ${service.customer} foi removido com sucesso.`,
-        });
+        toast.success(`${service.type} para ${service.customer} foi removido com sucesso.`);
         navigate('/services');
       }
     } catch (error) {
       console.error('Error deleting service:', error);
-      toast({
-        title: "Erro ao excluir",
-        description: "Ocorreu um erro ao excluir o serviço.",
-      });
+      toast.error("Ocorreu um erro ao excluir o serviço.");
     }
   };
   
@@ -189,21 +196,16 @@ const ServiceDetail: React.FC = () => {
         localStorage.setItem('pauloCell_services', JSON.stringify(updatedServices));
         setService({ ...service, status: newStatus });
         
-        toast({
-          title: "Status atualizado",
-          description: `O status do serviço foi alterado para ${
-            newStatus === 'waiting' ? 'Em espera' : 
-            newStatus === 'in_progress' ? 'Em andamento' : 
-            newStatus === 'completed' ? 'Concluído' : 'Entregue'
-          }.`,
-        });
+        const statusText = 
+          newStatus === 'waiting' ? 'Em espera' : 
+          newStatus === 'in_progress' ? 'Em andamento' : 
+          newStatus === 'completed' ? 'Concluído' : 'Entregue';
+        
+        toast.success(`O status do serviço foi alterado para ${statusText}.`);
       }
     } catch (error) {
       console.error('Error updating service status:', error);
-      toast({
-        title: "Erro ao atualizar",
-        description: "Ocorreu um erro ao atualizar o status do serviço.",
-      });
+      toast.error("Ocorreu um erro ao atualizar o status do serviço.");
     }
   };
   
@@ -223,7 +225,70 @@ const ServiceDetail: React.FC = () => {
   };
   
   const calculateTotalParts = () => {
-    return service.parts ? service.parts.reduce((total: number, part: any) => total + (part.price || 0), 0) : 0;
+    if (!service || !service.parts) return 0;
+    
+    // Use o valor manual das peças se estiver disponível
+    if (service.manualPartsTotal !== undefined && service.manualPartsTotal !== null) {
+      return service.manualPartsTotal;
+    }
+    
+    // Caso contrário, calcule o valor com base nas peças
+    return service.parts.reduce((total: number, part: any) => {
+      return total + ((part.price || 0) * (part.quantity || 1));
+    }, 0);
+  };
+  
+  const handleAddUpdate = () => {
+    if (!updateText.trim()) return;
+    
+    try {
+      // Formatar data e hora atual
+      const now = new Date();
+      const date = now.toLocaleDateString('pt-BR');
+      const time = now.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' });
+      
+      // Criar objeto de atualização
+      const newUpdate = {
+        date,
+        time,
+        message: updateText.trim(),
+        user: 'Usuário do Sistema' // Idealmente, usar o nome do usuário logado
+      };
+      
+      // Obter serviços do localStorage
+      const savedServices = localStorage.getItem('pauloCell_services');
+      if (savedServices) {
+        const services = JSON.parse(savedServices);
+        
+        // Encontrar e atualizar o serviço
+        const updatedServices = services.map((s: any) => {
+          if (s.id === id) {
+            // Adicionar a nova atualização ao array de atualizações
+            const updates = s.updates && Array.isArray(s.updates) ? [...s.updates, newUpdate] : [newUpdate];
+            return { ...s, updates };
+          }
+          return s;
+        });
+        
+        // Salvar no localStorage
+        localStorage.setItem('pauloCell_services', JSON.stringify(updatedServices));
+        
+        // Atualizar o estado do serviço
+        const updatedService = { 
+          ...service, 
+          updates: service.updates && Array.isArray(service.updates) ? [...service.updates, newUpdate] : [newUpdate] 
+        };
+        setService(updatedService);
+        
+        // Limpar o campo de texto
+        setUpdateText('');
+        
+        toast.success("A atualização foi registrada com sucesso.");
+      }
+    } catch (error) {
+      console.error('Error adding update:', error);
+      toast.error("Ocorreu um erro ao adicionar a atualização.");
+    }
   };
   
   return (
@@ -277,17 +342,29 @@ const ServiceDetail: React.FC = () => {
             <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
               <div>
                 <h3 className="text-sm font-medium text-muted-foreground mb-1">Cliente</h3>
-                <p className="font-medium cursor-pointer hover:text-primary transition-colors" 
-                  onClick={() => navigate(`/customers/${service.customerId}`)}>
-                  {service.customer}
-                </p>
+                {service.customerId ? (
+                  <p className="font-medium cursor-pointer hover:text-primary transition-colors" 
+                    onClick={() => navigate(`/customers/${service.customerId}`)}>
+                    {service.customer}
+                  </p>
+                ) : (
+                  <p className="font-medium">
+                    {service.customer}
+                  </p>
+                )}
               </div>
               <div>
                 <h3 className="text-sm font-medium text-muted-foreground mb-1">Dispositivo</h3>
-                <p className="font-medium cursor-pointer hover:text-primary transition-colors"
-                  onClick={() => navigate(`/devices/${service.deviceId}`)}>
-                  {service.device}
-                </p>
+                {service.deviceId ? (
+                  <p className="font-medium cursor-pointer hover:text-primary transition-colors"
+                    onClick={() => navigate(`/devices/${service.deviceId}`)}>
+                    {service.device}
+                  </p>
+                ) : (
+                  <p className="font-medium">
+                    {service.device}
+                  </p>
+                )}
               </div>
               <div>
                 <h3 className="text-sm font-medium text-muted-foreground mb-1">Técnico</h3>
@@ -304,6 +381,14 @@ const ServiceDetail: React.FC = () => {
               <div>
                 <h3 className="text-sm font-medium text-muted-foreground mb-1">Data de Conclusão</h3>
                 <p className="font-medium">{service.completionDate || "Não concluído"}</p>
+              </div>
+              <div>
+                <h3 className="text-sm font-medium text-muted-foreground mb-1">Garantia do Consumidor</h3>
+                <p className="font-medium">
+                  {service.warranty 
+                    ? `${service.warranty} ${parseInt(service.warranty) === 1 ? 'Mês' : 'Meses'}` 
+                    : "Sem garantia"}
+                </p>
               </div>
             </div>
             
@@ -416,8 +501,16 @@ const ServiceDetail: React.FC = () => {
               <textarea 
                 className="w-full h-24 p-3 border rounded-lg focus:outline-none focus:ring-2 focus:ring-primary"
                 placeholder="Digite uma atualização sobre o andamento do serviço..."
+                value={updateText}
+                onChange={(e) => setUpdateText(e.target.value)}
               />
-              <Button className="w-full">Adicionar Atualização</Button>
+              <Button 
+                className="w-full" 
+                onClick={handleAddUpdate}
+                disabled={!updateText.trim()}
+              >
+                Adicionar Atualização
+              </Button>
             </div>
           </Card>
         </div>

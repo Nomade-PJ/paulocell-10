@@ -1,11 +1,12 @@
-
-import { Toaster } from "@/components/ui/toaster";
-import { Toaster as Sonner } from "@/components/ui/sonner";
-import { TooltipProvider } from "@/components/ui/tooltip";
+import { Toaster } from "./components/ui/toaster";
+import { Toaster as Sonner } from "./components/ui/sonner";
+import { TooltipProvider } from "./components/ui/tooltip";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { BrowserRouter, Routes, Route, Navigate, Outlet } from "react-router-dom";
-import { NotificationProvider } from "@/contexts/NotificationContext";
-import { AuthProvider } from "@/contexts/AuthContext";
+import { useEffect } from "react";
+import { initTrashCleanup } from "./lib/trash-utils";
+import { NotificationProvider } from "./contexts/NotificationContext";
+import { AuthProvider } from "./contexts/AuthContext";
 import Login from "./pages/Login";
 import Register from "./pages/Register";
 import Dashboard from "./pages/Dashboard";
@@ -31,6 +32,9 @@ import NewDocument from "./pages/NewDocument";
 import DocumentDetail from "./pages/DocumentDetail";
 import TrashBin from './pages/TrashBin';
 import Index from './pages/Index';
+import ResetStatistics from './pages/ResetStatistics';
+import DataUpdateEmitter from './lib/DataUpdateEmitter';
+import TestReports from './pages/TestReports';
 
 // Add framer-motion for animations
 import { AnimatePresence } from "framer-motion";
@@ -54,10 +58,15 @@ const ProtectedRoute = () => {
 };
 
 function App() {
+  // Initialize trash cleanup on application start
+  useEffect(() => {
+    initTrashCleanup();
+  }, []);
   return (
     <QueryClientProvider client={queryClient}>
       <TooltipProvider>
         <BrowserRouter>
+          <DataUpdateEmitter />
           <AuthProvider>
             <NotificationProvider>
               <Toaster />
@@ -99,12 +108,16 @@ function App() {
                   
                   {/* Reports */}
                   <Route path="/reports" element={<Reports />} />
+                  <Route path="/test-reports" element={<TestReports />} />
                   
                   {/* Settings */}
                   <Route path="/settings" element={<Settings />} />
                   
                   {/* Demo */}
                   <Route path="/notification-demo" element={<NotificationDemo />} />
+                  
+                  {/* Reset Statistics */}
+                  <Route path="/reset-statistics" element={<ResetStatistics />} />
                 </Route>
                 
                 <Route path="*" element={<NotFound />} />

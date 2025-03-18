@@ -5,7 +5,6 @@ import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
 import { ArrowLeftIcon, PlusIcon, TrashIcon } from 'lucide-react';
 import { motion } from 'framer-motion';
-import { useToast } from '@/components/ui/use-toast';
 import { Label } from '@/components/ui/label';
 import { Input } from '@/components/ui/input';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
@@ -22,13 +21,14 @@ interface SelectedPart {
 const EditService: React.FC = () => {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
-  const { toast } = useToast();
   
   const [customers, setCustomers] = useState<any[]>([]);
   const [devices, setDevices] = useState<any[]>([]);
   const [inventoryItems, setInventoryItems] = useState<any[]>([]);
   const [selectedParts, setSelectedParts] = useState<SelectedPart[]>([]);
   const [laborCost, setLaborCost] = useState<number>(100);
+  const [manualPartsTotal, setManualPartsTotal] = useState<number | null>(null);
+  const [manualCustomerName, setManualCustomerName] = useState<string>('');
   const [loading, setLoading] = useState(true);
   const [formData, setFormData] = useState({
     customerId: '',
@@ -38,12 +38,14 @@ const EditService: React.FC = () => {
     technicianId: '',
     estimatedCompletion: '',
     status: 'waiting',
+    priority: 'normal',
+    warranty: '',
     notes: '',
   });
   
   // Load data from localStorage
   useEffect(() => {
-    const loadData = () => {
+    const loadData = async () => {
       try {
         setLoading(true);
         
@@ -51,9 +53,33 @@ const EditService: React.FC = () => {
         const savedServices = localStorage.getItem('pauloCell_services');
         if (savedServices) {
           const services = JSON.parse(savedServices);
-          const foundService = services.find((s: any) => s.id === id);
+          let foundService = services.find((s: any) => s.id === id);
           
           if (foundService) {
+            // Verificar se o serviço deve ser marcado como concluído automaticamente
+            if (
+              foundService.estimatedCompletion && 
+              foundService.status !== 'completed' && 
+              foundService.status !== 'delivered'
+            ) {
+              const currentDate = new Date();
+              const [day, month, year] = foundService.estimatedCompletion.split('/').map(Number);
+              const estimatedDate = new Date(year, month - 1, day); // Mês em JS é 0-indexed
+              
+              // Se a data atual for posterior à data estimada, atualizar para concluído
+              if (currentDate > estimatedDate) {
+                foundService = { ...foundService, status: 'completed' };
+                
+                // Atualiza a lista completa de serviços no localStorage
+                const updatedServices = services.map((s: any) => 
+                  s.id === id ? foundService : s
+                );
+                localStorage.setItem('pauloCell_services', JSON.stringify(updatedServices));
+                
+                toast.info("O serviço foi marcado como concluído pois a data estimada foi ultrapassada.");
+              }
+            }
+            
             // Set form data from found service
             const serviceType = foundService.type || foundService.serviceType || '';
             const isCustomService = !['Troca de Tela', 'Substituição de Bateria', 'Reparo de Placa', 'Troca de Conector de Carga', 'Atualização de Software', 'Limpeza Interna'].includes(serviceType);
@@ -66,6 +92,8 @@ const EditService: React.FC = () => {
               technicianId: foundService.technicianId || '',
               estimatedCompletion: foundService.estimatedCompletion || '',
               status: foundService.status || 'waiting',
+              priority: foundService.priority || 'normal',
+              warranty: foundService.warranty || '',
               notes: foundService.notes || '',
             });
             
@@ -76,19 +104,23 @@ const EditService: React.FC = () => {
             if (foundService.parts && Array.isArray(foundService.parts)) {
               setSelectedParts(foundService.parts);
             }
+            
+            // Set manual parts total if available
+            if (foundService.manualPartsTotal !== undefined && foundService.manualPartsTotal !== null) {
+              setManualPartsTotal(foundService.manualPartsTotal);
+            }
+            
+            // Set manual customer name if no customerId is present
+            if (!foundService.customerId && foundService.customer) {
+              setManualCustomerName(foundService.customer);
+            }
           } else {
-            toast({
-              title: "Serviço não encontrado",
-              description: "O serviço que você está procurando não existe ou foi removido.",
-            });
+            toast.error("Serviço não encontrado.");
             navigate('/services');
             return;
           }
         } else {
-          toast({
-            title: "Nenhum serviço cadastrado",
-            description: "Não há serviços cadastrados no sistema.",
-          });
+          toast.error("Não há serviços cadastrados.");
           navigate('/services');
           return;
         }
@@ -122,17 +154,14 @@ const EditService: React.FC = () => {
         }
       } catch (error) {
         console.error('Error loading service data:', error);
-        toast({
-          title: "Erro ao carregar dados",
-          description: "Ocorreu um erro ao carregar os dados do serviço.",
-        });
+        toast.error("Ocorreu um erro ao carregar os dados do serviço.");
       } finally {
         setLoading(false);
       }
     };
     
     loadData();
-  }, [id, navigate, toast]);
+  }, [id, navigate]);
   
   const handleInputChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => {
     const { name, value } = e.target;
@@ -150,6 +179,11 @@ const EditService: React.FC = () => {
   const handleLaborCostChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const value = parseFloat(e.target.value) || 0;
     setLaborCost(value);
+  };
+  
+  const handleManualPartsTotalChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const value = parseFloat(e.target.value);
+    setManualPartsTotal(isNaN(value) ? null : value);
   };
   
   const addPart = (partId: string) => {
@@ -182,6 +216,9 @@ const EditService: React.FC = () => {
   };
   
   const calculateTotalParts = () => {
+    if (manualPartsTotal !== null) {
+      return manualPartsTotal;
+    }
     return selectedParts.reduce((total, part) => total + (part.price * part.quantity), 0);
   };
   
@@ -199,10 +236,7 @@ const EditService: React.FC = () => {
     // Get existing services
     const savedServices = localStorage.getItem('pauloCell_services');
     if (!savedServices) {
-      toast({
-        title: "Erro ao atualizar",
-        description: "Não foi possível encontrar os serviços cadastrados.",
-      });
+      toast.error("Não foi possível encontrar os serviços cadastrados.");
       return;
     }
     
@@ -211,38 +245,63 @@ const EditService: React.FC = () => {
     // Find the service to update
     const serviceIndex = services.findIndex((s: any) => s.id === id);
     if (serviceIndex === -1) {
-      toast({
-        title: "Erro ao atualizar",
-        description: "Serviço não encontrado.",
-      });
+      toast.error("Serviço não encontrado.");
       return;
     }
     
     // Validar se o campo de serviço personalizado está preenchido quando 'Outros Serviços' for selecionado
     if (formData.serviceType === 'outros' && !formData.customServiceType.trim()) {
-      toast({
-        title: "Campo obrigatório",
-        description: "Por favor, digite o nome do serviço.",
-        variant: "destructive"
-      });
+      toast.error("Por favor, digite o nome do serviço.");
       return;
+    }
+    
+    // Verifica se o serviço deve ser marcado como concluído automaticamente
+    let updatedStatus = formData.status;
+    if (
+      formData.estimatedCompletion && 
+      formData.status !== 'completed' && 
+      formData.status !== 'delivered'
+    ) {
+      const currentDate = new Date();
+      const [day, month, year] = formData.estimatedCompletion.split('/').map(Number);
+      const estimatedDate = new Date(year, month - 1, day); // Mês em JS é 0-indexed
+      
+      // Se a data atual for posterior à data estimada, atualizar para concluído
+      if (currentDate > estimatedDate) {
+        updatedStatus = 'completed';
+        toast.info("O serviço foi marcado como concluído pois a data estimada foi ultrapassada.");
+      }
+    }
+    
+    let customerName = 'Cliente não identificado';
+    
+    // Se um cliente foi selecionado, use o nome dele
+    if (formData.customerId && customer) {
+      customerName = customer.name;
+    } 
+    // Se nenhum cliente foi selecionado mas foi digitado um nome, use o nome digitado
+    else if (manualCustomerName.trim()) {
+      customerName = manualCustomerName;
     }
     
     // Create updated service data
     const updatedService = {
       ...services[serviceIndex],
       ...formData,
+      status: updatedStatus, // Usar o status atualizado
       type: formData.serviceType === 'outros' ? formData.customServiceType : formData.serviceType,
       parts: selectedParts,
       laborCost,
+      manualPartsTotal,
       totalCost: calculateTotal(),
       price: calculateTotal(), // Added for ServiceCard compatibility
-      customer: customer?.name || 'Cliente não encontrado',
-      customerId: formData.customerId,
-      device: device?.name || 'Dispositivo não encontrado',
-      deviceId: formData.deviceId,
+      customer: customerName,
+      customerId: formData.customerId || undefined,
+      device: device?.name || 'Dispositivo não especificado',
+      deviceId: formData.deviceId || undefined, // Mantém undefined quando não há dispositivo selecionado
       technician: formData.technicianId || 'Não atribuído',
       estimatedCompletion: formData.estimatedCompletion || undefined,
+      warranty: formData.warranty || undefined,
       updatedAt: new Date().toISOString(),
     };
     
@@ -252,10 +311,7 @@ const EditService: React.FC = () => {
     // Save to localStorage
     localStorage.setItem('pauloCell_services', JSON.stringify(services));
     
-    toast({
-      title: "Serviço atualizado",
-      description: "O serviço foi atualizado com sucesso.",
-    });
+    toast.success("Serviço atualizado com sucesso.");
     
     navigate(`/services/${id}`);
   };
@@ -294,24 +350,38 @@ const EditService: React.FC = () => {
           <form onSubmit={handleSubmit} className="space-y-6">
             <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
               <div className="space-y-2">
-                <Label htmlFor="customer">Cliente</Label>
-                <Select 
-                  value={formData.customerId} 
-                  onValueChange={(value) => handleSelectChange('customerId', value)}
-                >
-                  <SelectTrigger id="customer">
-                    <SelectValue placeholder="Selecione o cliente" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {customers.map(c => (
-                      <SelectItem key={c.id} value={c.id}>{c.name}</SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
+                <Label htmlFor="customer">Cliente (opcional)</Label>
+                <div className="space-y-2">
+                  <Select 
+                    value={formData.customerId} 
+                    onValueChange={(value) => handleSelectChange('customerId', value)}
+                  >
+                    <SelectTrigger id="customer">
+                      <SelectValue placeholder="Selecione o cliente" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {customers.map(c => (
+                        <SelectItem key={c.id} value={c.id}>{c.name}</SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                  
+                  {!formData.customerId && (
+                    <div className="pt-2">
+                      <Label htmlFor="manualCustomerName">Nome do cliente</Label>
+                      <Input
+                        id="manualCustomerName"
+                        value={manualCustomerName}
+                        onChange={(e) => setManualCustomerName(e.target.value)}
+                        placeholder="Digite o nome do cliente"
+                      />
+                    </div>
+                  )}
+                </div>
               </div>
               
               <div className="space-y-2">
-                <Label htmlFor="device">Dispositivo</Label>
+                <Label htmlFor="device">Dispositivo (opcional)</Label>
                 <Select 
                   value={formData.deviceId}
                   onValueChange={(value) => handleSelectChange('deviceId', value)}
@@ -397,7 +467,41 @@ const EditService: React.FC = () => {
                     <SelectItem value="waiting">Aguardando</SelectItem>
                     <SelectItem value="in_progress">Em Andamento</SelectItem>
                     <SelectItem value="completed">Concluído</SelectItem>
-                    <SelectItem value="canceled">Cancelado</SelectItem>
+                    <SelectItem value="delivered">Entregue</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+              
+              <div className="space-y-2">
+                <Label htmlFor="warranty">Garantia do Consumidor</Label>
+                <select 
+                  id="warranty"
+                  name="warranty"
+                  className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
+                  value={formData.warranty}
+                  onChange={(e) => handleSelectChange('warranty', e.target.value)}
+                >
+                  <option value="">Sem garantia</option>
+                  <option value="1">1 Mês</option>
+                  <option value="3">3 Meses</option>
+                  <option value="6">6 Meses</option>
+                  <option value="12">12 Meses</option>
+                </select>
+              </div>
+              
+              <div className="space-y-2">
+                <Label htmlFor="priority">Prioridade</Label>
+                <Select 
+                  value={formData.priority}
+                  onValueChange={(value) => handleSelectChange('priority', value)}
+                >
+                  <SelectTrigger id="priority">
+                    <SelectValue placeholder="Selecione a prioridade" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="low">Baixa</SelectItem>
+                    <SelectItem value="normal">Normal</SelectItem>
+                    <SelectItem value="high">Alta</SelectItem>
                   </SelectContent>
                 </Select>
               </div>
@@ -477,8 +581,17 @@ const EditService: React.FC = () => {
                     </div>
                   ))}
                   
-                  <div className="pt-2">
-                    <p className="text-sm text-muted-foreground">Total Peças: R$ {calculateTotalParts().toFixed(2)}</p>
+                  <div className="pt-2 flex items-center justify-between">
+                    <Label htmlFor="manualPartsTotal">Total Peças (R$):</Label>
+                    <Input
+                      id="manualPartsTotal"
+                      type="number"
+                      value={manualPartsTotal !== null ? manualPartsTotal : calculateTotalParts()}
+                      onChange={handleManualPartsTotalChange}
+                      min="0"
+                      step="10"
+                      className="w-24 text-right"
+                    />
                   </div>
                 </div>
               ) : (
