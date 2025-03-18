@@ -46,8 +46,8 @@ const Settings: React.FC = () => {
   // Company information state
   const [companyData, setCompanyData] = useState({
     name: 'Paulo Cell',
-    phone: '(11) 98765-4321',
-    email: 'Paullo.celullar2020@gmail',
+    phone: '98 984031640',
+    email: 'Paullo.celullar2020@gmail.com',
     address: 'Rua Dr. Paulo Ramos, S/n, Bairro: Centro',
     city: 'Coelho Neto',
     state: 'MA',

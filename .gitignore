@@ -22,3 +22,18 @@ dist-ssr
 *.njsproj
 *.sln
 *.sw?
+
+# Ambiente
+.env
+.env.*
+!.env.example
+
+# Arquivos temporários
+*.tmp
+*.temp
+.cache
+.eslintcache
+
+# Arquivos de produção
+build/
+coverage/

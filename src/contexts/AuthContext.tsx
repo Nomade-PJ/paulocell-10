@@ -192,7 +192,9 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
   const logout = () => {
     setUser(null);
+    // Remove apenas os dados do usuário, mantendo as configurações da API
     localStorage.removeItem('pauloCell_user');
+    // Não remove 'pauloCell_invoiceApiConfig' para manter as configurações da API
     toast({
       title: 'Logout realizado com sucesso!',
       description: 'Até logo!'

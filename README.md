@@ -159,3 +159,209 @@ Este projeto está sob a licença MIT. Veja o arquivo LICENSE para mais detalhes
 ---
 
 Desenvolvido por [Nomade-PJ](https://github.com/Nomade-PJ)
+
+## Implantação na Hostinger
+
+Este guia fornece instruções para implantar o sistema Paulo Cell no Hostinger VPS.
+
+### Pré-requisitos
+
+1. Conta na Hostinger com plano VPS (recomendamos pelo menos KVM 2 com 2 vCPU e 8GB RAM)
+2. Domínio configurado e apontando para o servidor
+3. Acesso SSH ao servidor
+
+### Passos para implantação
+
+#### 1. Configurar o servidor
+
+Acesse o servidor via SSH e instale as dependências:
+
+```bash
+# Atualizar o sistema
+sudo apt update
+sudo apt upgrade -y
+
+# Instalar Node.js (v18 ou superior)
+curl -fsSL https://deb.nodesource.com/setup_18.x | sudo -E bash -
+sudo apt install -y nodejs
+
+# Instalar o gerenciador de processos PM2
+sudo npm install -g pm2
+
+# Instalar o Nginx
+sudo apt install -y nginx
+```
+
+#### 2. Configurar o Nginx
+
+Crie um arquivo de configuração do Nginx:
+
+```bash
+sudo nano /etc/nginx/sites-available/paulocell
+```
+
+Adicione a seguinte configuração (substitua `seudominio.com.br` pelo seu domínio):
+
+```nginx
+server {
+    listen 80;
+    server_name seudominio.com.br www.seudominio.com.br;
+
+    location / {
+        proxy_pass http://localhost:3000;
+        proxy_http_version 1.1;
+        proxy_set_header Upgrade $http_upgrade;
+        proxy_set_header Connection 'upgrade';
+        proxy_set_header Host $host;
+        proxy_cache_bypass $http_upgrade;
+    }
+}
+```
+
+Ative a configuração:
+
+```bash
+sudo ln -s /etc/nginx/sites-available/paulocell /etc/nginx/sites-enabled/
+sudo nginx -t
+sudo systemctl restart nginx
+```
+
+#### 3. Configurar o HTTPS com Certbot
+
+```bash
+sudo apt install -y certbot python3-certbot-nginx
+sudo certbot --nginx -d seudominio.com.br -d www.seudominio.com.br
+```
+
+#### 4. Fazer upload do código
+
+Você pode usar Git ou transferir arquivos via FTP/SFTP. Exemplo com Git:
+
+```bash
+# No servidor
+mkdir -p /var/www/paulocell
+cd /var/www/paulocell
+
+# Clone o repositório (se estiver usando Git)
+git clone https://seu-repositorio.git .
+
+# Ou faça upload via SFTP
+```
+
+#### 5. Configurar variáveis de ambiente
+
+```bash
+cd /var/www/paulocell
+cp .env.example .env.production
+nano .env.production  # Edite as variáveis conforme necessário
+```
+
+#### 6. Instalar dependências e construir o projeto
+
+```bash
+npm install
+npm run build
+```
+
+#### 7. Iniciar o servidor com PM2
+
+```bash
+pm2 start server.js --name paulocell
+pm2 save
+pm2 startup
+```
+
+#### 8. Verificar a aplicação
+
+Acesse seu domínio no navegador para verificar se tudo está funcionando corretamente.
+
+### Manutenção
+
+Para atualizar o sistema no futuro:
+
+```bash
+cd /var/www/paulocell
+git pull  # Se estiver usando Git
+npm install
+npm run build
+pm2 restart paulocell
+```
+
+Para monitorar o servidor:
+
+```bash
+pm2 logs paulocell
+pm2 monit
+```
+
+### Solução de problemas
+
+- Verifique os logs do Nginx: `sudo tail -f /var/log/nginx/error.log`
+- Verifique os logs do PM2: `pm2 logs paulocell`
+- Verifique o status do Nginx: `sudo systemctl status nginx`
+
+## Migração do localStorage para MySQL
+
+O sistema foi atualizado para usar MySQL como banco de dados em vez do localStorage. Isso oferece várias vantagens:
+
+1. **Persistência de dados:** Os dados são armazenados no servidor e não no navegador
+2. **Acesso multi-dispositivo:** Seus dados estarão disponíveis em qualquer dispositivo
+3. **Segurança:** Backups automáticos e proteção contra perda de dados
+4. **Escalabilidade:** Suporte a maior volume de dados sem limitações de armazenamento local
+
+### Processo de migração
+
+Para migrar os dados do localStorage para o MySQL, siga estes passos:
+
+1. **Exportar dados do localStorage:**
+
+```bash
+# No diretório do projeto
+node scripts/export-localStorage.js
+```
+
+Este script interativo irá guiá-lo no processo de exportação dos dados. Você precisará:
+- Abrir o aplicativo no navegador
+- Acessar o console do navegador (F12 -> Console)
+- Executar comandos para extrair os dados
+- Colar os resultados no terminal quando solicitado
+
+2. **Configurar o banco de dados:**
+
+Crie o arquivo `.env.production` na raiz do projeto com as configurações do seu banco MySQL:
+
+```
+# Configurações do banco de dados
+DB_HOST=seu_host_mysql
+DB_USER=seu_usuario
+DB_PASSWORD=sua_senha
+DB_NAME=paulocell
+```
+
+3. **Executar a migração:**
+
+```bash
+# No diretório do projeto
+node scripts/migrate.js
+```
+
+Este script irá:
+- Inicializar o banco de dados com o esquema correto
+- Importar os dados dos arquivos JSON para as tabelas MySQL
+
+### Estrutura do banco de dados
+
+O banco de dados inclui as seguintes tabelas:
+
+- `customers`: Clientes e suas informações
+- `devices`: Dispositivos registrados
+- `services`: Serviços realizados
+- `inventory`: Itens de inventário
+- `documents`: Documentos e faturas
+- `users`: Usuários do sistema
+- `notification_settings`: Configurações de notificações
+- `company_settings`: Configurações da empresa
+
+### Utilizando o sistema com MySQL
+
+Após a migração, o sistema funcionará da mesma forma que antes, mas os dados serão persistidos no banco de dados MySQL em vez do localStorage. Isso permitirá que você acesse os mesmos dados de diferentes computadores e dispositivos.
