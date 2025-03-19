@@ -115,6 +115,10 @@ const Login: React.FC = () => {
             <CardTitle className="text-2xl font-bold text-center">Login</CardTitle>
             <CardDescription className="text-center">
               Entre com suas credenciais para acessar o sistema
+              <div className="mt-2 text-sm text-muted-foreground">
+                <strong>Usuário:</strong> paulocell <br />
+                <strong>Senha:</strong> paulocell@admin
+              </div>
             </CardDescription>
           </CardHeader>
           <CardContent>

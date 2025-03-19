@@ -52,15 +52,20 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     loadUserFromStorage();
   }, []);
 
-  const login = async (email: string, password: string) => {
+  const login = async (emailOrUsername: string, password: string) => {
     try {
+      console.log('Tentativa de login com:', emailOrUsername, password);
+      // Normalize email/username (trim whitespace and convert to lowercase)
+      const normalizedInput = emailOrUsername.trim().toLowerCase();
+      const validEmail = 'paullo.celullar2020@gmail.com'.toLowerCase();
+      
       // For demo purposes, using hardcoded credentials
       // Allow login with either email or username 'paulocell'
-      if ((email === 'paullo.celullar2020@gmail.com' || email === 'paulocell') && password === 'paulocell@admin') {
+      if ((normalizedInput === validEmail || normalizedInput === 'paulocell') && password === 'paulocell@admin') {
         const user = {
           id: '1',
           name: 'Paulo Cell Admin',
-          email: email === 'paulocell' ? 'paullo.celullar2020@gmail.com' : email
+          email: normalizedInput === 'paulocell' ? 'paullo.celullar2020@gmail.com' : emailOrUsername
         };
         setUser(user);
         localStorage.setItem('pauloCell_user', JSON.stringify(user));
