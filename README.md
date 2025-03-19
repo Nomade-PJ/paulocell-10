@@ -80,19 +80,19 @@ paulocell-10/
 1. Clone o repositório:
    ```bash
    git clone https://github.com/Nomade-PJ/paulocell-10.git
-   cd paulocell-10
+cd paulocell-10
    ```
 
 2. Instale as dependências:
    ```bash
-   npm install
+npm install
    # ou
    yarn install
    ```
 
 3. Inicie o servidor de desenvolvimento:
    ```bash
-   npm run dev
+npm run dev
    # ou
    yarn dev
    ```
