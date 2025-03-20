@@ -1,0 +1,47 @@
+// Rota de registro
+router.post('/register', async (req, res) => {
+  try {
+    const { name, email, password } = req.body;
+    
+    if (!name || !email || !password) {
+      return res.status(400).json({ message: 'Nome, email e senha são obrigatórios' });
+    }
+    
+    // Verificar se o email já está em uso
+    const existingUsers = await query('SELECT * FROM users WHERE email = ? LIMIT 1', [email.toLowerCase()]);
+    
+    if (existingUsers.length > 0) {
+      return res.status(400).json({ message: 'Este email já está em uso' });
+    }
+    
+    // Gerar hash da senha
+    const saltRounds = 10;
+    const passwordHash = await bcrypt.hash(password, saltRounds);
+    
+    // Gerar ID único
+    const userId = crypto.randomUUID();
+    
+    // Inserir novo usuário no banco de dados
+    await query(
+      'INSERT INTO users (id, email, name, password_hash, role, created_at) VALUES (?, ?, ?, ?, ?, ?)',
+      [userId, email.toLowerCase(), name, passwordHash, 'technician', Date.now()]
+    );
+    
+    // Criar sessão para o novo usuário
+    if (req.session) {
+      req.session.userId = userId;
+      req.session.userRole = 'technician';
+    }
+    
+    // Retornar dados do usuário (sem a senha)
+    res.status(201).json({
+      id: userId,
+      name,
+      email: email.toLowerCase(),
+      role: 'technician'
+    });
+  } catch (error) {
+    console.error('Erro durante o registro:', error);
+    res.status(500).json({ message: 'Erro interno do servidor' });
+  }
+});

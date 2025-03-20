@@ -4,6 +4,7 @@ import path from 'path';
 import { fileURLToPath } from 'url';
 import cors from 'cors';
 import dotenv from 'dotenv';
+import session from 'express-session';
 import { initializeDatabase } from './server/db.js';
 import apiRoutes from './server/routes/index.js';
 
@@ -22,6 +23,17 @@ const app = express();
 // Middleware para parsing de JSON e CORS
 app.use(express.json());
 app.use(cors());
+
+// Configurar middleware de sessão
+app.use(session({
+  secret: process.env.SESSION_SECRET || 'paulocell-secret-key',
+  resave: false,
+  saveUninitialized: false,
+  cookie: { 
+    secure: process.env.NODE_ENV === 'production', // Use secure cookies em produção
+    maxAge: 24 * 60 * 60 * 1000 // 24 horas
+  }
+}));
 
 // Middleware para logging básico
 app.use((req, res, next) => {
@@ -70,4 +82,4 @@ initializeDatabase()
   .catch(error => {
     console.error('Falha ao inicializar o servidor:', error);
     process.exit(1);
-  }); 
+  });

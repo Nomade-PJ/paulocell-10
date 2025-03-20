@@ -1,8 +1,6 @@
 import React, { createContext, useContext, useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { toast } from '../components/ui/use-toast';
-import { auth, googleProvider } from '../lib/firebase';
-import { signInWithPopup, GoogleAuthProvider } from 'firebase/auth';
 
 interface User {
   id: string;
@@ -33,23 +31,38 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const [user, setUser] = useState<User | null>(null);
   const navigate = useNavigate();
 
-  // Load user from localStorage on mount
+  // Verificar sessão atual no servidor ao montar o componente
   useEffect(() => {
-    const loadUserFromStorage = () => {
-      const storedUser = localStorage.getItem('pauloCell_user');
-      if (storedUser) {
-        try {
-          const parsedUser = JSON.parse(storedUser);
-          setUser(parsedUser);
-          console.log('User loaded from localStorage:', parsedUser);
-        } catch (error) {
-          console.error('Error parsing stored user:', error);
-          localStorage.removeItem('pauloCell_user');
+    const checkCurrentSession = async () => {
+      try {
+        // Verificar se há uma sessão ativa no servidor
+        const response = await fetch('/api/auth/check-session', {
+          method: 'GET',
+          headers: {
+            'Content-Type': 'application/json'
+          },
+          credentials: 'include' // Importante para enviar cookies
+        });
+        
+        if (response.ok) {
+          const userData = await response.json();
+          setUser({
+            id: userData.id,
+            name: userData.name,
+            email: userData.email
+          });
+          console.log('Sessão ativa encontrada:', userData);
+        } else {
+          console.log('Nenhuma sessão ativa encontrada');
+          setUser(null);
         }
+      } catch (error) {
+        console.error('Erro ao verificar sessão:', error);
+        setUser(null);
       }
     };
     
-    loadUserFromStorage();
+    checkCurrentSession();
   }, []);
 
   const login = async (emailOrUsername: string, password: string) => {
@@ -57,27 +70,82 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       console.log('Tentativa de login com:', emailOrUsername, password);
       // Normalize email/username (trim whitespace and convert to lowercase)
       const normalizedInput = emailOrUsername.trim().toLowerCase();
-      const validEmail = 'paullo.celullar2020@gmail.com'.toLowerCase();
       
-      // For demo purposes, using hardcoded credentials
-      // Allow login with either email or username 'paulocell'
-      if ((normalizedInput === validEmail || normalizedInput === 'paulocell') && password === 'paulocell@admin') {
+      // Tentar autenticar com o servidor
+      try {
+        const response = await fetch('/api/auth/login', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json'
+          },
+          body: JSON.stringify({ 
+            emailOrUsername: normalizedInput, 
+            password 
+          })
+        });
+        
+        if (!response.ok) {
+          const errorData = await response.json();
+          throw new Error(errorData.message || 'Erro ao fazer login');
+        }
+        
+        const userData = await response.json();
         const user = {
-          id: '1',
-          name: 'Paulo Cell Admin',
-          email: normalizedInput === 'paulocell' ? 'paullo.celullar2020@gmail.com' : emailOrUsername
+          id: userData.id,
+          name: userData.name,
+          email: userData.email
         };
+        
+        // Primeiro definimos o usuário no estado
         setUser(user);
+        
+        // Em seguida, salvamos no localStorage
         localStorage.setItem('pauloCell_user', JSON.stringify(user));
+        console.log('Usuário salvo no localStorage:', user);
+        
+        // Exibimos a mensagem de sucesso
         toast({
           title: 'Login realizado com sucesso!',
           description: 'Bem-vindo ao sistema Paulo Cell.'
         });
-        navigate('/dashboard');
-      } else {
+        
+        // Adicionamos um pequeno delay antes de redirecionar para garantir que
+        // o localStorage e o estado do usuário sejam atualizados corretamente
+        setTimeout(() => {
+          console.log('Redirecionando para o dashboard...');
+          navigate('/dashboard');
+        }, 300);
+      } catch (apiError) {
+        console.error('Erro na API de autenticação:', apiError);
+        
+        // Fallback para o método antigo (hardcoded) em caso de erro na API
+        // Isso é temporário durante a migração e deve ser removido posteriormente
+        const validEmail = 'paullo.celullar2020@gmail.com'.toLowerCase();
+        if ((normalizedInput === validEmail || normalizedInput === 'paulocell') && password === 'paulocell@admin') {
+          const user = {
+            id: '1',
+            name: 'Paulo Cell Admin',
+            email: normalizedInput === 'paulocell' ? 'paullo.celullar2020@gmail.com' : emailOrUsername
+          };
+          
+          setUser(user);
+          localStorage.setItem('pauloCell_user', JSON.stringify(user));
+          
+          toast({
+            title: 'Login realizado com sucesso (modo offline)!',
+            description: 'Bem-vindo ao sistema Paulo Cell.'
+          });
+          
+          setTimeout(() => {
+            navigate('/dashboard');
+          }, 300);
+          return;
+        }
+        
         throw new Error('Credenciais inválidas');
       }
     } catch (error) {
+      console.error('Erro durante o login:', error);
       toast({
         variant: 'destructive',
         title: 'Erro ao fazer login',
@@ -88,73 +156,27 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
   const loginWithGoogle = async () => {
     try {
-      // Clear any previous error messages
+      // Limpar mensagens de erro anteriores
       const errorElement = document.getElementById('google-login-error');
       if (errorElement) {
         errorElement.textContent = '';
         errorElement.style.display = 'none';
       }
 
-      console.log('Iniciando login com Google...');
-      // Use signInWithRedirect instead of signInWithPopup to avoid popup blockers
-      const result = await signInWithPopup(auth, googleProvider);
-      console.log('Login com Google bem-sucedido:', result);
+      console.log('Iniciando login com Google via servidor...');
       
-      // The signed-in user info
-      const credential = GoogleAuthProvider.credentialFromResult(result);
-      const user = result.user;
+      // Redirecionar para a rota de autenticação do Google no servidor
+      window.location.href = '/api/auth/google';
       
-      console.log('Usuário autenticado:', user);
+      // Nota: O redirecionamento ocorrerá, então o código abaixo não será executado
+      // até que o usuário retorne do fluxo de autenticação do Google
       
-      // Create a user object with the data we need
-      const newUser = {
-        id: user.uid,
-        name: user.displayName || 'Usuário Google',
-        email: user.email || ''
-      };
-      
-      setUser(newUser);
-      localStorage.setItem('pauloCell_user', JSON.stringify(newUser));
-      
-      toast({
-        title: 'Login realizado com sucesso!',
-        description: 'Bem-vindo ao sistema Paulo Cell.'
-      });
-      
-      navigate('/dashboard');
     } catch (error) {
-      console.error('Google login error:', error);
+      console.error('Erro ao iniciar login com Google:', error);
       
-      // Provide more specific error messages based on error type
-      let errorMessage = 'Ocorreu um erro ao fazer login com Google.';
-      
-      if (error instanceof Error) {
-        // Check for specific Firebase auth error codes
-        const errorCode = (error as any).code;
-        console.error('Código de erro:', errorCode);
-        console.error('Mensagem de erro completa:', error.message);
-        
-        if (errorCode === 'auth/popup-closed-by-user') {
-          errorMessage = 'O popup de login foi fechado antes de completar a autenticação.';
-        } else if (errorCode === 'auth/popup-blocked') {
-          errorMessage = 'O popup de login foi bloqueado pelo navegador. Por favor, permita popups para este site.';
-        } else if (errorCode === 'auth/cancelled-popup-request') {
-          errorMessage = 'A solicitação de login foi cancelada.';
-        } else if (errorCode === 'auth/network-request-failed') {
-          errorMessage = 'Falha na conexão de rede. Verifique sua conexão com a internet.';
-        } else if (errorCode === 'auth/invalid-api-key') {
-          errorMessage = 'A chave de API do Firebase é inválida. Contate o administrador do sistema.';
-        } else if (errorCode === 'auth/unauthorized-domain') {
-          errorMessage = 'Este domínio não está autorizado para operações OAuth. Contate o administrador do sistema.';
-        } else if (errorCode === 'auth/operation-not-allowed') {
-          errorMessage = 'O login com Google não está habilitado. Contate o administrador do sistema.';
-        } else if (errorCode === 'auth/internal-error') {
-          errorMessage = 'Ocorreu um erro interno no servidor de autenticação. Tente novamente mais tarde.';
-        } else {
-          // Use the actual error message if available
-          errorMessage = error.message || errorMessage;
-        }
-      }
+      const errorMessage = error instanceof Error 
+        ? error.message 
+        : 'Ocorreu um erro ao iniciar o login com Google.';
       
       toast({
         variant: 'destructive',
@@ -162,7 +184,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         description: errorMessage
       });
       
-      // Display a UI element with the error message
+      // Exibir mensagem de erro na UI
       const errorElement = document.getElementById('google-login-error');
       if (errorElement) {
         errorElement.textContent = errorMessage;
@@ -173,20 +195,40 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
   const register = async (name: string, email: string, password: string) => {
     try {
-      // For demo purposes, store user in localStorage
+      // Enviar dados de registro para o servidor
+      const response = await fetch('/api/auth/register', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({ name, email, password })
+      });
+      
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.message || 'Erro ao fazer cadastro');
+      }
+      
+      const userData = await response.json();
+      
+      // Definir o usuário no estado
       const newUser = {
-        id: Date.now().toString(),
-        name,
-        email
+        id: userData.id,
+        name: userData.name,
+        email: userData.email
       };
+      
       setUser(newUser);
-      localStorage.setItem('pauloCell_user', JSON.stringify(newUser));
+      
       toast({
         title: 'Cadastro realizado com sucesso!',
         description: 'Bem-vindo ao sistema Paulo Cell.'
       });
+      
       navigate('/dashboard');
     } catch (error) {
+      console.error('Erro durante o registro:', error);
+      
       toast({
         variant: 'destructive',
         title: 'Erro ao fazer cadastro',
@@ -195,16 +237,43 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     }
   };
 
-  const logout = () => {
-    setUser(null);
-    // Remove apenas os dados do usuário, mantendo as configurações da API
-    localStorage.removeItem('pauloCell_user');
-    // Não remove 'pauloCell_invoiceApiConfig' para manter as configurações da API
-    toast({
-      title: 'Logout realizado com sucesso!',
-      description: 'Até logo!'
-    });
-    navigate('/login');
+  const logout = async () => {
+    try {
+      // Chamar a API para encerrar a sessão no servidor
+      const response = await fetch('/api/auth/logout', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json'
+        },
+        credentials: 'include' // Importante para enviar cookies
+      });
+      
+      if (!response.ok) {
+        throw new Error('Falha ao encerrar sessão no servidor');
+      }
+      
+      // Limpar o estado do usuário
+      setUser(null);
+      
+      toast({
+        title: 'Logout realizado com sucesso!',
+        description: 'Até logo!'
+      });
+      
+      navigate('/login');
+    } catch (error) {
+      console.error('Erro ao fazer logout:', error);
+      
+      // Mesmo com erro, limpar o estado do usuário
+      setUser(null);
+      navigate('/login');
+      
+      toast({
+        variant: 'destructive',
+        title: 'Aviso',
+        description: 'Logout realizado, mas houve um erro ao comunicar com o servidor.'
+      });
+    }
   };
 
   return (

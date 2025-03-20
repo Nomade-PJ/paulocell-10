@@ -1,5 +1,6 @@
 import express from 'express';
 import customerRoutes from './customerRoutes.js';
+import authRoutes from './authRoutes.js';
 // Importar outras rotas à medida que são criadas
 
 const router = express.Router();
@@ -17,6 +18,7 @@ router.get('/health', (req, res) => {
 
 // Rotas para entidades
 router.use('/customers', customerRoutes);
+router.use('/auth', authRoutes);
 // Adicionar outras rotas aqui
 
 // Middleware para rotas não encontradas
@@ -24,4 +26,4 @@ router.use((req, res) => {
   res.status(404).json({ message: 'Rota não encontrada' });
 });
 
-export default router; 
+export default router;
