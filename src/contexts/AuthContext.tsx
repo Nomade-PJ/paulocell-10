@@ -1,6 +1,6 @@
 import React, { createContext, useContext, useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { toast } from '../components/ui/use-toast';
+import { toast } from '@/components/ui/use-toast';
 
 interface User {
   id: string;
@@ -29,6 +29,7 @@ export const useAuth = () => {
 
 export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const [user, setUser] = useState<User | null>(null);
+  const [isLoading, setIsLoading] = useState(false);
   const navigate = useNavigate();
 
   // Verificar sessão atual no servidor ao montar o componente
@@ -122,13 +123,10 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         // Isso é temporário durante a migração e deve ser removido posteriormente
         const validEmail = 'paullo.celullar2020@gmail.com'.toLowerCase();
         // Removido o fallback hardcoded para credenciais
-          setTimeout(() => {
-            navigate('/dashboard');
-          }, 300);
-          return;
-        }
-        
-        throw new Error('Credenciais inválidas');
+        setTimeout(() => {
+          navigate('/dashboard');
+        }, 300);
+        return;
       }
     } catch (error) {
       console.error('Erro durante o login:', error);
@@ -137,6 +135,8 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         title: 'Erro ao fazer login',
         description: error instanceof Error ? error.message : 'Ocorreu um erro ao fazer login.'
       });
+    } finally {
+      setIsLoading(false);
     }
   };
 
