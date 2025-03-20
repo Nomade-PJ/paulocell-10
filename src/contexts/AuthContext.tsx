@@ -79,7 +79,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
             'Content-Type': 'application/json'
           },
           body: JSON.stringify({ 
-            emailOrUsername: normalizedInput, 
+            email: normalizedInput, 
             password 
           })
         });
@@ -121,21 +121,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         // Fallback para o método antigo (hardcoded) em caso de erro na API
         // Isso é temporário durante a migração e deve ser removido posteriormente
         const validEmail = 'paullo.celullar2020@gmail.com'.toLowerCase();
-        if ((normalizedInput === validEmail || normalizedInput === 'paulocell') && password === 'paulocell@admin') {
-          const user = {
-            id: '1',
-            name: 'Paulo Cell Admin',
-            email: normalizedInput === 'paulocell' ? 'paullo.celullar2020@gmail.com' : emailOrUsername
-          };
-          
-          setUser(user);
-          localStorage.setItem('pauloCell_user', JSON.stringify(user));
-          
-          toast({
-            title: 'Login realizado com sucesso (modo offline)!',
-            description: 'Bem-vindo ao sistema Paulo Cell.'
-          });
-          
+        // Removido o fallback hardcoded para credenciais
           setTimeout(() => {
             navigate('/dashboard');
           }, 300);
