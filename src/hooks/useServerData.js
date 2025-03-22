@@ -7,6 +7,7 @@ import {
   syncPendingData
 } from '../services/userDataService';
 import { useToast } from '../hooks/useToast';
+import { toast } from 'react-toastify';
 
 /**
  * Hook para gerenciar dados persistentes no servidor 
@@ -28,44 +29,138 @@ export function useServerData(store, autoLoad = true) {
   const userId = user?.id;
   
   /**
-   * Função para carregar dados do servidor
+   * Função para carregar dados do servidor com prioridade
    */
-  const loadData = useCallback(async () => {
+  const loadData = useCallback(async (forceRefresh = false) => {
     if (!userId) {
       console.warn('Tentativa de carregar dados sem usuário autenticado');
       setError(new Error('Usuário não autenticado'));
-      return;
+      setLoading(false);
+      return [];
     }
     
     if (!store) {
       console.warn('Nome do armazenamento (store) não informado');
       setError(new Error('Nome do armazenamento é obrigatório'));
-      return;
+      setLoading(false);
+      return [];
     }
     
+    console.log(`[useServerData] Carregando dados da store '${store}' para usuário ${userId}${forceRefresh ? ' (forçando atualização)' : ''}`);
     setLoading(true);
     setError(null);
     
     try {
-      // Verificar conexão com a internet
-      if (!navigator.onLine) {
-        console.warn('Dispositivo está offline, usando dados locais');
-        showToast('Você está offline. Dados podem não estar atualizados.', 'warning');
+      // Definir um timeout para o servidor responder
+      const serverDataPromise = new Promise(async (resolve, reject) => {
+        try {
+          // Sempre tentar buscar do servidor primeiro, mesmo quando offline
+          // O serviço getUserData já implementa fallback para dados locais
+          const serverData = await getUserData(userId, store);
+          console.log(`[useServerData] Dados recebidos do servidor: ${serverData.length} itens`);
+          resolve(serverData);
+        } catch (serverError) {
+          console.warn(`[useServerData] Falha ao buscar do servidor:`, serverError);
+          reject(serverError);
+        }
+      });
+      
+      // Timeout de 8 segundos
+      const timeoutPromise = new Promise((_, reject) => {
+        setTimeout(() => {
+          reject(new Error('Tempo limite excedido ao buscar dados do servidor'));
+        }, 8000);
+      });
+      
+      // Competição entre servidor e timeout
+      let data;
+      
+      try {
+        data = await Promise.race([serverDataPromise, timeoutPromise]);
+        
+        // Dados vieram do servidor, atualizar estado e localStorage
+        setData(data);
+        console.log(`[useServerData] Estado atualizado com ${data.length} itens`);
+      } catch (timeoutError) {
+        console.warn('[useServerData] Timeout ou erro ao buscar do servidor:', timeoutError);
+        
+        // Em caso de timeout, usar dados locais
+        console.log('[useServerData] Usando dados locais devido a timeout');
+        
+        try {
+          // Recuperar dados locais através do serviço
+          // O serviço implementa a lógica de buscar do localStorage
+          const localData = await getLocalData(userId, store);
+          data = localData;
+          setData(localData);
+          
+          // Mostrar toast informativo
+          if (navigator.onLine) {
+            toast.warning('O servidor está demorando para responder. Usando dados locais.');
+          } else {
+            toast.info('Você está offline. Usando dados salvos localmente.');
+          }
+        } catch (localError) {
+          console.error('[useServerData] Erro ao buscar dados locais:', localError);
+          setError('Não foi possível carregar seus dados');
+          data = [];
+          setData([]);
+        }
       }
       
-      console.log(`Carregando dados da store '${store}' para usuário ${userId}`);
-      const result = await getUserData(userId, store);
-      
-      console.log(`${result.length} itens carregados`);
-      setData(result || []);
-    } catch (err) {
-      console.error(`Erro ao carregar dados da store '${store}':`, err);
-      setError(err);
-      showToast(`Erro ao carregar dados: ${err.message}`, 'error');
-    } finally {
       setLoading(false);
+      setLastSync(new Date());
+      return data;
+    } catch (error) {
+      console.error(`[useServerData] Erro ao carregar dados para ${store}:`, error);
+      setError(`Erro ao carregar dados: ${error.message}`);
+      setLoading(false);
+      
+      // Exibir mensagem para o usuário
+      toast.error(`Não foi possível carregar seus dados: ${error.message}`);
+      
+      // Retornar array vazio em caso de falha
+      setData([]);
+      return [];
     }
-  }, [userId, store, showToast]);
+  }, [userId, store]);
+  
+  /**
+   * Função auxiliar para buscar dados do localStorage
+   * @param {string} userId - ID do usuário
+   * @param {string} store - Nome do armazenamento
+   * @returns {Array} - Dados locais
+   */
+  function getLocalData(userId, store) {
+    try {
+      const localData = [];
+      for (let i = 0; i < localStorage.length; i++) {
+        const key = localStorage.key(i);
+        if (key && key.startsWith(`${userId}_${store}_`) && !key.endsWith('_delete')) {
+          try {
+            const value = JSON.parse(localStorage.getItem(key));
+            const itemKey = key.replace(`${userId}_${store}_`, '');
+            
+            if (value && value.data) {
+              localData.push({
+                id: value.id || itemKey, // Usar ID do servidor se disponível
+                key: itemKey,
+                ...(typeof value.data === 'object' ? value.data : { data: value.data }),
+                pendingSync: value.pendingSync === true,
+                _localUpdatedAt: value.updatedAt
+              });
+            }
+          } catch (e) {
+            console.warn(`Item inválido no localStorage: ${key}`);
+          }
+        }
+      }
+      return localData;
+    } catch (error) {
+      console.error('Erro ao ler dados do localStorage:', error);
+      return [];
+    }
+  }
   
   /**
    * Função para salvar um item no servidor
@@ -215,7 +310,7 @@ export function useServerData(store, autoLoad = true) {
         showToast(result.message, 'success');
         
         // Recarregar os dados após sincronização
-        await loadData();
+        await loadData(true);
       } else {
         console.warn('Sincronização concluída com alertas:', result.message);
         showToast(result.message, result.failed > 0 ? 'error' : 'warning');
@@ -267,6 +362,65 @@ export function useServerData(store, autoLoad = true) {
       loadData();
     }
   }, [autoLoad, userId, store, loadData]);
+  
+  // Efeito para sincronizar após login
+  useEffect(() => {
+    if (userId && store && navigator.onLine) {
+      // Quando o usuário faz login, sincronizar dados imediatamente
+      loadData(true).then(() => {
+        // Após carregar dados do servidor, verificar se há dados pendentes
+        syncData().catch(e => console.error('Erro na sincronização inicial:', e));
+      });
+    }
+  }, [userId, store]); // Dependência em userId para sincronizar quando mudar (login/logout)
+  
+  // Carregar dados ao inicializar o hook
+  useEffect(() => {
+    if (user?.id) {
+      loadData();
+    } else {
+      console.log('[useServerData] Esperando autenticação do usuário');
+      setLoading(false);
+      setData([]);
+    }
+  }, [user, loadData]);
+
+  // Monitorar estado de conexão para sincronização automática
+  useEffect(() => {
+    const handleOnline = async () => {
+      console.log('[useServerData] Conexão restabelecida, sincronizando dados');
+      
+      toast.info('Conexão restabelecida. Sincronizando suas alterações...', { autoClose: 2000 });
+      
+      // Aguardar um momento antes de sincronizar para garantir que a conexão é estável
+      setTimeout(async () => {
+        try {
+          await syncData();
+        } catch (error) {
+          console.error('[useServerData] Erro ao sincronizar após conexão restabelecida:', error);
+        }
+      }, 2000);
+    };
+    
+    const handleOffline = () => {
+      console.log('[useServerData] Conexão perdida, trabalhando offline');
+      toast.info('Você está offline. As alterações serão salvas localmente.', { autoClose: 3000 });
+    };
+    
+    window.addEventListener('online', handleOnline);
+    window.addEventListener('offline', handleOffline);
+    
+    // Verificar conectividade ao montar o componente
+    if (!navigator.onLine) {
+      console.log('[useServerData] Inicializando em modo offline');
+      toast.info('Você está offline. Os dados serão salvos localmente até que a conexão seja restabelecida.', { autoClose: 4000 });
+    }
+    
+    return () => {
+      window.removeEventListener('online', handleOnline);
+      window.removeEventListener('offline', handleOffline);
+    };
+  }, [syncData]);
   
   return {
     data,

@@ -54,40 +54,52 @@ const cache = {
   }
 };
 
+// Adicionar cabeçalhos CORS para permitir requisições cross-origin
+const corsHeaders = {
+  'Access-Control-Allow-Origin': '*',
+  'Access-Control-Allow-Methods': 'GET, POST, PUT, DELETE, OPTIONS',
+  'Access-Control-Allow-Headers': 'Content-Type, Authorization'
+};
+
+// Cache para reduzir número de consultas ao banco
+const dataCache = {};
+
 /**
  * Handler principal para a API de dados do usuário
  */
 module.exports = async (req, res) => {
   try {
-    // Verificar se o usuário está autenticado
-    // ... implementar verificação de autenticação real aqui ...
-    const userId = req.query.userId || req.body?.userId;
-    
-    if (!userId) {
-      return res.status(401).json({ success: false, message: 'Usuário não autenticado' });
+    // Verificar se é uma requisição OPTIONS (preflight)
+    if (req.method === 'OPTIONS') {
+      res.status(200).set(corsHeaders).send('OK');
+      return;
     }
 
-    // Determinar a operação com base no método HTTP
-    switch(req.method) {
+    // Adicionar cabeçalhos CORS em todas as respostas
+    Object.entries(corsHeaders).forEach(([key, value]) => {
+      res.setHeader(key, value);
+    });
+
+    // Verificar se o userId foi fornecido
+    const { userId } = req.query;
+    if (!userId) {
+      return res.status(400).json({ success: false, message: 'ID do usuário é obrigatório' });
+    }
+
+    // Processar requisição com base no método HTTP
+    switch (req.method) {
       case 'GET':
-        await handleGetData(req, res);
-        break;
+        return await handleGetData(req, res);
       case 'POST':
-        await handleSaveData(req, res);
-        break;
+        return await handleSaveData(req, res);
       case 'DELETE':
-        await handleDeleteData(req, res);
-        break;
+        return await handleDeleteData(req, res);
       default:
-        res.status(405).json({ success: false, message: 'Método não permitido' });
+        return res.status(405).json({ success: false, message: 'Método não permitido' });
     }
   } catch (error) {
-    console.error('Erro na API de dados do usuário:', error);
-    res.status(500).json({
-      success: false,
-      message: `Erro no servidor: ${error.message}`,
-      error: process.env.NODE_ENV === 'development' ? error.stack : undefined
-    });
+    console.error('Erro ao processar requisição de dados do usuário:', error);
+    return res.status(500).json({ success: false, message: error.message });
   }
 };
 
@@ -95,91 +107,61 @@ module.exports = async (req, res) => {
  * Obtém os dados do usuário
  */
 async function handleGetData(req, res) {
-  const userId = req.query.userId;
-  const store = req.query.store;
-  const key = req.query.key;
+  const { userId, store } = req.query;
+
+  // Validar parâmetros
+  if (!store) {
+    return res.status(400).json({ success: false, message: 'Nome do armazenamento (store) é obrigatório' });
+  }
+
+  console.log(`[DIAGNÓSTICO] Buscando dados do banco para usuário=${userId}, store=${store}`);
   
   try {
-    if (!userId) {
-      return res.status(400).json({ success: false, message: 'ID do usuário é obrigatório' });
-    }
-
-    // Validar store
-    if (!store || typeof store !== 'string') {
-      return res.status(400).json({ success: false, message: 'Nome do armazenamento (store) é obrigatório e deve ser uma string' });
-    }
-
-    // Verificar se temos dados em cache
-    const cacheKey = `${userId}_${store}${key ? `_${key}` : ''}`;
-    const cachedData = cache.get(cacheKey);
+    // Buscar dados do usuário no banco de dados
+    const { db } = await import('../lib/db');
     
-    if (cachedData) {
-      return res.status(200).json({
-        success: true,
-        data: cachedData,
-        fromCache: true
-      });
-    }
-
-    let sql, params;
+    console.log(`[DB] Executando consulta para buscar dados do usuário ${userId} na store ${store}`);
     
-    // Se key for fornecido, buscar apenas esse item
-    if (key) {
-      // Buscar um único item
-      sql = 'SELECT id, user_id, store_name, item_key, data, created_at, updated_at FROM user_data WHERE user_id = ? AND store_name = ? AND item_key = ?';
-      params = [userId, store, key];
-    } else {
-      // Buscar todos os itens da store
-      sql = 'SELECT id, user_id, store_name, item_key, data, created_at, updated_at FROM user_data WHERE user_id = ? AND store_name = ?';
-      params = [userId, store];
-    }
-
-    // Executar a consulta
-    const rows = await query(sql, params);
+    const query = `
+      SELECT * FROM user_data 
+      WHERE user_id = ? AND store_name = ?
+      ORDER BY updated_at DESC
+    `;
     
-    // Processar os resultados
-    const results = rows.map(row => {
+    const results = await db.query(query, [userId, store]);
+    
+    console.log(`[DB] Consulta retornou ${results.length} resultados`);
+    
+    // Processar os resultados para um formato mais amigável
+    const data = results.map(item => {
       try {
-        // Converter JSON para objeto JavaScript
-        const dataObj = typeof row.data === 'string' ? JSON.parse(row.data) : row.data;
-        
+        // Tentar converter a string JSON em objeto
+        const parsedData = JSON.parse(item.data);
         return {
-          id: row.id,
-          key: row.item_key,
-          ...(typeof dataObj === 'object' ? dataObj : { data: dataObj }),
-          _meta: {
-            created: row.created_at,
-            updated: row.updated_at
-          }
+          id: item.id,
+          key: item.item_key,
+          ...parsedData,
+          created_at: item.created_at,
+          updated_at: item.updated_at
         };
-      } catch (error) {
-        console.warn(`Erro ao processar dados para item ${row.id}:`, error);
+      } catch (e) {
+        // Se não for um JSON válido, retornar o dado bruto
         return {
-          id: row.id,
-          key: row.item_key,
-          data: row.data,
-          _meta: {
-            created: row.created_at,
-            updated: row.updated_at,
-            parseError: true
-          }
+          id: item.id,
+          key: item.item_key,
+          data: item.data,
+          created_at: item.created_at,
+          updated_at: item.updated_at
         };
       }
     });
 
-    // Salvar em cache
-    cache.set(cacheKey, results);
-    
-    return res.status(200).json({
-      success: true,
-      data: results
-    });
+    console.log(`[DB] Retornando ${data.length} itens convertidos`);
+
+    return res.status(200).json({ success: true, data });
   } catch (error) {
-    console.error('Erro ao buscar dados do usuário:', error);
-    return res.status(500).json({
-      success: false,
-      message: `Erro ao buscar dados: ${error.message}`
-    });
+    console.error('Erro ao buscar dados:', error);
+    return res.status(500).json({ success: false, message: `Erro de banco de dados: ${error.message}` });
   }
 }
 
@@ -187,98 +169,71 @@ async function handleGetData(req, res) {
  * Salva os dados do usuário
  */
 async function handleSaveData(req, res) {
+  const { userId } = req.query;
+  const { store, key, data } = req.body;
+
+  // Validar dados obrigatórios
+  if (!store || !key || data === undefined) {
+    return res.status(400).json({ success: false, message: 'Store, key e data são obrigatórios' });
+  }
+
   try {
-    const userId = req.body.userId;
-    const store = req.body.store;
-    const key = req.body.key;
-    const data = req.body.data;
+    console.log(`[DB] Salvando dados para usuário ${userId}, store=${store}, key=${key}`);
+    
+    // Converter os dados para JSON se for objeto ou array
+    const jsonData = typeof data === 'object' ? JSON.stringify(data) : data;
 
-    // Validar parâmetros
-    if (!userId) {
-      return res.status(400).json({ success: false, message: 'ID do usuário é obrigatório' });
-    }
-
-    if (!store || typeof store !== 'string') {
-      return res.status(400).json({ success: false, message: 'Nome do armazenamento (store) é obrigatório e deve ser uma string' });
-    }
-
-    if (!key || typeof key !== 'string') {
-      return res.status(400).json({ success: false, message: 'Chave (key) é obrigatória e deve ser uma string' });
-    }
-
-    if (data === undefined || data === null) {
-      return res.status(400).json({ success: false, message: 'Dados não podem ser null ou undefined' });
-    }
-
-    // Converter dados para JSON
-    const jsonData = typeof data === 'string' ? data : JSON.stringify(data);
-
-    // Primeiro verificar se o item já existe
-    const existingRows = await query(
-      'SELECT id FROM user_data WHERE user_id = ? AND store_name = ? AND item_key = ?',
-      [userId, store, key]
-    );
-
+    // Buscar se já existe um registro para este usuário, store e key
+    const { db } = await import('../lib/db');
+    
+    const existingQuery = `
+      SELECT id FROM user_data 
+      WHERE user_id = ? AND store_name = ? AND item_key = ?
+    `;
+    
+    const existing = await db.query(existingQuery, [userId, store, key]);
+    
     let result;
     let id;
-
-    if (existingRows.length > 0) {
+    
+    if (existing && existing.length > 0) {
       // Atualizar registro existente
-      id = existingRows[0].id;
+      id = existing[0].id;
+      const updateQuery = `
+        UPDATE user_data 
+        SET data = ?, updated_at = NOW() 
+        WHERE id = ?
+      `;
       
-      result = await query(
-        'UPDATE user_data SET data = ?, updated_at = NOW() WHERE id = ?',
-        [jsonData, id]
-      );
-      
-      console.log(`Atualizado registro existente ID ${id}`);
+      result = await db.query(updateQuery, [jsonData, id]);
+      console.log(`[DB] Atualizado registro existente com ID ${id}`);
     } else {
-      // Gerar UUID para o novo registro
-      id = uuidv4();
-      
       // Inserir novo registro
-      result = await query(
-        'INSERT INTO user_data (id, user_id, store_name, item_key, data, created_at, updated_at) VALUES (?, ?, ?, ?, ?, NOW(), NOW())',
-        [id, userId, store, key, jsonData]
-      );
+      const insertQuery = `
+        INSERT INTO user_data (user_id, store_name, item_key, data, created_at, updated_at) 
+        VALUES (?, ?, ?, ?, NOW(), NOW())
+      `;
       
-      console.log(`Criado novo registro com ID ${id}`);
+      result = await db.query(insertQuery, [userId, store, key, jsonData]);
+      id = result.insertId;
+      console.log(`[DB] Criado novo registro com ID ${id}`);
     }
 
-    // Atualizar cache
-    cache.invalidate(`${userId}_${store}`);
-    cache.invalidate(`${userId}_${store}_${key}`);
+    // Invalidar o cache para forçar uma nova leitura do banco
+    const cacheKey = `${userId}_${store}`;
+    if (dataCache[cacheKey]) {
+      delete dataCache[cacheKey];
+      console.log(`[Cache] Cache invalidado para ${cacheKey}`);
+    }
 
-    // Devolver resposta
     return res.status(200).json({
       success: true,
       id,
-      message: existingRows.length > 0 ? 'Dados atualizados com sucesso' : 'Dados criados com sucesso'
+      message: existing && existing.length > 0 ? 'Dados atualizados' : 'Dados criados'
     });
   } catch (error) {
     console.error('Erro ao salvar dados:', error);
-    
-    // Verificar erros específicos do MySQL
-    if (error.code === 'ER_NO_REFERENCED_ROW_2') {
-      return res.status(400).json({
-        success: false,
-        message: 'O usuário informado não existe no sistema',
-        error: error.message
-      });
-    }
-    
-    if (error.code === 'ER_DUP_ENTRY') {
-      return res.status(409).json({
-        success: false,
-        message: 'Conflito: Este registro já existe',
-        error: error.message
-      });
-    }
-    
-    return res.status(500).json({
-      success: false,
-      message: `Erro ao salvar dados: ${error.message}`
-    });
+    return res.status(500).json({ success: false, message: `Erro de banco de dados: ${error.message}` });
   }
 }
 
@@ -286,51 +241,47 @@ async function handleSaveData(req, res) {
  * Remove os dados do usuário
  */
 async function handleDeleteData(req, res) {
+  const { userId } = req.query;
+  const { store, key } = req.body;
+
+  // Validar dados obrigatórios
+  if (!store || !key) {
+    return res.status(400).json({ success: false, message: 'Store e key são obrigatórios' });
+  }
+
   try {
-    const userId = req.body.userId;
-    const store = req.body.store;
-    const key = req.body.key;
+    console.log(`[DB] Removendo dados para usuário ${userId}, store=${store}, key=${key}`);
+    
+    // Excluir registro
+    const { db } = await import('../lib/db');
+    
+    const deleteQuery = `
+      DELETE FROM user_data 
+      WHERE user_id = ? AND store_name = ? AND item_key = ?
+    `;
+    
+    const result = await db.query(deleteQuery, [userId, store, key]);
 
-    // Validar parâmetros
-    if (!userId) {
-      return res.status(400).json({ success: false, message: 'ID do usuário é obrigatório' });
+    // Invalidar o cache para forçar uma nova leitura do banco
+    const cacheKey = `${userId}_${store}`;
+    if (dataCache[cacheKey]) {
+      delete dataCache[cacheKey];
+      console.log(`[Cache] Cache invalidado para ${cacheKey}`);
     }
 
-    if (!store || typeof store !== 'string') {
-      return res.status(400).json({ success: false, message: 'Nome do armazenamento (store) é obrigatório' });
-    }
-
-    if (!key || typeof key !== 'string') {
-      return res.status(400).json({ success: false, message: 'Chave (key) é obrigatória' });
-    }
-
-    // Executar a exclusão
-    const result = await query(
-      'DELETE FROM user_data WHERE user_id = ? AND store_name = ? AND item_key = ?',
-      [userId, store, key]
-    );
-
-    // Verificar se algo foi excluído
     if (result.affectedRows === 0) {
       return res.status(404).json({
         success: false,
-        message: 'Nenhum dado encontrado para exclusão'
+        message: 'Nenhum dado encontrado com estas informações'
       });
     }
-
-    // Invalidar o cache
-    cache.invalidate(`${userId}_${store}`);
-    cache.invalidate(`${userId}_${store}_${key}`);
 
     return res.status(200).json({
       success: true,
       message: 'Dados removidos com sucesso'
     });
   } catch (error) {
-    console.error('Erro ao excluir dados:', error);
-    return res.status(500).json({
-      success: false,
-      message: `Erro ao excluir dados: ${error.message}`
-    });
+    console.error('Erro ao remover dados:', error);
+    return res.status(500).json({ success: false, message: `Erro de banco de dados: ${error.message}` });
   }
 } 

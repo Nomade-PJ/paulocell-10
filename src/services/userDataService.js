@@ -30,7 +30,27 @@ export async function saveUserData(userId, store, key, data) {
       throw new Error('Dados não podem ser null ou undefined');
     }
 
-    console.log(`Salvando dados para usuário ${userId} na store ${store}, key ${key}`);
+    console.log(`[UserData] Salvando dados para usuário ${userId} na store ${store}, key ${key}`);
+    
+    // Verificar se estamos online - se não, salvar localmente com flag de pendente
+    if (!navigator.onLine) {
+      console.warn('[UserData] Dispositivo offline. Salvando apenas localmente.');
+      // Salvar no localStorage como pendente para sincronização
+      const storageKey = `${userId}_${store}_${key}`;
+      localStorage.setItem(storageKey, JSON.stringify({
+        data,
+        updatedAt: new Date().toISOString(),
+        pendingSync: true
+      }));
+      
+      return { 
+        success: true, 
+        id: key, 
+        fromLocalStorage: true,
+        needsSync: true,
+        message: 'Salvo localmente. Será sincronizado quando online.' 
+      };
+    }
     
     const response = await fetch(`/api/user-data?userId=${userId}`, {
       method: 'POST',
@@ -59,7 +79,7 @@ export async function saveUserData(userId, store, key, data) {
     }
 
     const result = await response.json();
-    console.log('Dados salvos com sucesso no servidor:', result);
+    console.log('[UserData] Dados salvos com sucesso no servidor:', result);
     
     // Salvar uma cópia local para acesso offline também
     try {
@@ -70,15 +90,15 @@ export async function saveUserData(userId, store, key, data) {
         pendingSync: false, // Não está pendente, pois foi salvo com sucesso
         id: result.id // Armazenar o ID do registro para futuras atualizações
       }));
-      console.log('Cópia local dos dados atualizada');
+      console.log('[UserData] Cópia local dos dados atualizada');
     } catch (localError) {
-      console.warn('Não foi possível salvar cópia local:', localError);
+      console.warn('[UserData] Não foi possível salvar cópia local:', localError);
       // Não lançar erro, pois os dados foram salvos com sucesso no servidor
     }
     
     return result;
   } catch (error) {
-    console.error('Erro ao salvar dados do usuário:', error);
+    console.error('[UserData] Erro ao salvar dados do usuário:', error);
     
     // Salvar no localStorage como fallback para caso offline
     try {
@@ -89,9 +109,9 @@ export async function saveUserData(userId, store, key, data) {
         pendingSync: true,
         error: error.message
       }));
-      console.log('Dados salvos no localStorage como fallback (pendentes para sincronização)');
+      console.log('[UserData] Dados salvos no localStorage como fallback (pendentes para sincronização)');
     } catch (localError) {
-      console.error('Erro crítico: Falha ao salvar no servidor E no localStorage:', localError);
+      console.error('[UserData] Erro crítico: Falha ao salvar no servidor E no localStorage:', localError);
     }
     
     throw error;
@@ -115,9 +135,27 @@ export async function getUserData(userId, store) {
       throw new Error('Nome do armazenamento (store) é obrigatório e deve ser uma string');
     }
 
-    console.log(`Buscando dados para usuário ${userId} na store ${store}`);
+    console.log(`[UserData] Buscando dados para usuário ${userId} na store ${store}`);
     
-    // Começar a busca no servidor e no localStorage em paralelo
+    // Diagnóstico
+    console.log(`[DIAGNÓSTICO] Tentando buscar dados para userId=${userId}, store=${store}`);
+    
+    // Verificar se a API está acessível
+    try {
+      const pingResponse = await fetch('/api/ping', { 
+        method: 'GET',
+        signal: AbortSignal.timeout(2000)
+      });
+      console.log(`[DIAGNÓSTICO] API acessível: ${pingResponse.ok ? 'SIM' : 'NÃO'}`);
+      if (pingResponse.ok) {
+        const pingData = await pingResponse.json();
+        console.log(`[DIAGNÓSTICO] Status do banco: ${pingData.database}`);
+      }
+    } catch (pingError) {
+      console.warn(`[DIAGNÓSTICO] API não acessível: ${pingError.message}`);
+    }
+    
+    // Tentar buscar dados do servidor sempre primeiro, a menos que estejamos offline
     const serverPromise = fetch(`/api/user-data?userId=${userId}&store=${store}`, {
       method: 'GET',
       headers: {
@@ -133,6 +171,13 @@ export async function getUserData(userId, store) {
       return response.json();
     });
     
+    // Se estivermos offline, usar apenas dados locais
+    if (!navigator.onLine) {
+      console.warn('[UserData] Dispositivo offline, usando apenas dados locais');
+      const localData = getLocalData(userId, store);
+      return localData;
+    }
+    
     // Buscar dados do localStorage enquanto aguarda o servidor
     const localData = getLocalData(userId, store);
     
@@ -144,29 +189,29 @@ export async function getUserData(userId, store) {
         throw new Error('Formato de resposta inválido do servidor');
       }
       
-      console.log(`${result.data.length} itens recuperados do servidor para ${store}`);
+      console.log(`[UserData] ${result.data.length} itens recuperados do servidor para ${store}`);
       
       // Atualizar localStorage com os dados mais recentes do servidor
       updateLocalCache(userId, store, result.data);
       
       return result.data;
     } catch (serverError) {
-      console.warn(`Falha ao buscar dados do servidor: ${serverError.message}. Usando dados locais.`);
+      console.warn(`[UserData] Falha ao buscar dados do servidor: ${serverError.message}. Usando dados locais.`);
       
       // Se o servidor falhar, usar os dados locais
-      console.log(`${localData.length} itens recuperados do localStorage para ${store}`);
+      console.log(`[UserData] ${localData.length} itens recuperados do localStorage para ${store}`);
       return localData;
     }
   } catch (error) {
-    console.error(`Erro ao buscar dados do usuário para ${store}:`, error);
+    console.error(`[UserData] Erro ao buscar dados do usuário para ${store}:`, error);
     
     // Em caso de erro geral, tentar retornar dados locais
     try {
       const localData = getLocalData(userId, store);
-      console.log(`Fallback: ${localData.length} itens recuperados do localStorage para ${store}`);
+      console.log(`[UserData] Fallback: ${localData.length} itens recuperados do localStorage para ${store}`);
       return localData;
     } catch (localError) {
-      console.error('Erro crítico: Falha ao buscar do servidor E do localStorage:', localError);
+      console.error('[UserData] Erro crítico: Falha ao buscar do servidor E do localStorage:', localError);
       return [];
     }
   }
@@ -198,13 +243,13 @@ function getLocalData(userId, store) {
             });
           }
         } catch (e) {
-          console.warn(`Item inválido no localStorage: ${key}`);
+          console.warn(`[UserData] Item inválido no localStorage: ${key}`);
         }
       }
     }
     return localData;
   } catch (error) {
-    console.error('Erro ao ler dados do localStorage:', error);
+    console.error('[UserData] Erro ao ler dados do localStorage:', error);
     return [];
   }
 }
@@ -235,7 +280,7 @@ function updateLocalCache(userId, store, serverData) {
         
         // Se tiver mudanças pendentes locais, não sobrescrever
         if (currentItem && currentItem.pendingSync) {
-          console.log(`Item ${item.key} tem alterações pendentes locais, não atualizando do servidor`);
+          console.log(`[UserData] Item ${item.key} tem alterações pendentes locais, não atualizando do servidor`);
           return;
         }
         
@@ -252,9 +297,9 @@ function updateLocalCache(userId, store, serverData) {
       }
     });
     
-    console.log('Cache local atualizado com dados do servidor');
+    console.log('[UserData] Cache local atualizado com dados do servidor');
   } catch (error) {
-    console.warn('Erro ao atualizar cache local:', error);
+    console.warn('[UserData] Erro ao atualizar cache local:', error);
   }
 }
 
@@ -275,7 +320,28 @@ export async function removeUserData(userId, store, key) {
       throw new Error('Store e key são obrigatórios');
     }
 
-    console.log(`Removendo dados para usuário ${userId} da store ${store}, key ${key}`);
+    console.log(`[UserData] Removendo dados para usuário ${userId} da store ${store}, key ${key}`);
+    
+    // Se estiver offline, apenas marcar como pendente para exclusão
+    if (!navigator.onLine) {
+      const storageKey = `${userId}_${store}_${key}`;
+      
+      // Remover o item original do localStorage para evitar uso acidental
+      localStorage.removeItem(storageKey);
+      
+      // Marcar como pendente para exclusão
+      localStorage.setItem(`${storageKey}_delete`, JSON.stringify({
+        updatedAt: new Date().toISOString(),
+        pendingDelete: true
+      }));
+      
+      return { 
+        success: true, 
+        fromLocalStorage: true,
+        needsSync: true,
+        message: 'Marcado para exclusão quando online.' 
+      };
+    }
     
     const response = await fetch(`/api/user-data?userId=${userId}`, {
       method: 'DELETE',
@@ -302,7 +368,7 @@ export async function removeUserData(userId, store, key) {
     }
 
     const result = await response.json();
-    console.log('Dados removidos com sucesso do servidor:', result);
+    console.log('[UserData] Dados removidos com sucesso do servidor:', result);
     
     // Remover também do localStorage
     const storageKey = `${userId}_${store}_${key}`;
@@ -312,7 +378,7 @@ export async function removeUserData(userId, store, key) {
     
     return result;
   } catch (error) {
-    console.error('Erro ao remover dados do usuário:', error);
+    console.error('[UserData] Erro ao remover dados do usuário:', error);
     
     // Marcar como "a ser removido" no localStorage para sincronização posterior
     try {
@@ -326,9 +392,9 @@ export async function removeUserData(userId, store, key) {
         updatedAt: new Date().toISOString(),
         pendingDelete: true
       }));
-      console.log('Item marcado para remoção no localStorage em sincronização futura');
+      console.log('[UserData] Item marcado para remoção no localStorage em sincronização futura');
     } catch (localError) {
-      console.error('Erro ao marcar para remoção no localStorage:', localError);
+      console.error('[UserData] Erro ao marcar para remoção no localStorage:', localError);
     }
     
     throw error;
@@ -361,6 +427,32 @@ export async function syncPendingData(userId) {
   }
 
   try {
+    console.log(`[UserData] Iniciando sincronização para usuário ${userId}`);
+    
+    // Verificar se a API está acessível antes de tentar sincronizar
+    try {
+      const pingResponse = await fetch('/api/ping', { 
+        method: 'GET',
+        signal: AbortSignal.timeout(2000)
+      });
+      if (!pingResponse.ok) {
+        throw new Error('API não está respondendo');
+      }
+      const pingData = await pingResponse.json();
+      if (pingData.database !== 'connected') {
+        throw new Error(`Problema com o banco de dados: ${pingData.database}`);
+      }
+      console.log('[UserData] API e banco de dados estão operacionais');
+    } catch (pingError) {
+      console.error('[UserData] Falha na verificação do servidor:', pingError);
+      return {
+        success: false,
+        message: `Servidor indisponível: ${pingError.message}`,
+        error: pingError.message,
+        results
+      };
+    }
+    
     // Buscar todos os itens no localStorage que pertencem ao usuário
     const pendingSaves = [];
     const pendingDeletes = [];
@@ -381,7 +473,7 @@ export async function syncPendingData(userId) {
             }
           }
         } catch (e) {
-          console.warn(`Item inválido no localStorage: ${key}`, e);
+          console.warn(`[UserData] Item inválido no localStorage: ${key}`, e);
         }
       }
       
@@ -397,7 +489,7 @@ export async function syncPendingData(userId) {
       }
     }
     
-    console.log(`Sincronizando ${pendingSaves.length} itens para salvar e ${pendingDeletes.length} para remover`);
+    console.log(`[UserData] Sincronizando ${pendingSaves.length} itens para salvar e ${pendingDeletes.length} para remover`);
     
     if (pendingSaves.length === 0 && pendingDeletes.length === 0) {
       return {
@@ -474,7 +566,7 @@ export async function syncPendingData(userId) {
         await getUserData(userId, store);
       }
     } catch (error) {
-      console.warn('Erro ao atualizar dados após sincronização:', error);
+      console.warn('[UserData] Erro ao atualizar dados após sincronização:', error);
     }
     
     return {
@@ -485,12 +577,50 @@ export async function syncPendingData(userId) {
       ...results
     };
   } catch (error) {
-    console.error('Erro durante sincronização:', error);
+    console.error('[UserData] Erro durante sincronização:', error);
     return {
       success: false,
       message: `Erro durante sincronização: ${error.message}`,
       error: error.message,
       ...results
     };
+  }
+}
+
+/**
+ * Limpa o cache local para um usuário específico
+ * Útil após login para garantir dados frescos
+ * @param {string} userId - ID do usuário 
+ */
+export function clearLocalStorageCache(userId) {
+  if (!userId) return;
+  
+  console.log(`[UserData] Limpando cache local antigo para usuário ${userId}`);
+  
+  try {
+    // Limpar apenas dados antigos (não pendentes) deste usuário
+    const keysToRemove = [];
+    
+    for (let i = 0; i < localStorage.length; i++) {
+      const key = localStorage.key(i);
+      if (key && key.startsWith(`${userId}_`) && !key.endsWith('_delete')) {
+        try {
+          const value = JSON.parse(localStorage.getItem(key));
+          if (!value?.pendingSync) {
+            keysToRemove.push(key);
+          }
+        } catch (e) {
+          // Se não conseguir ler, incluir para remoção
+          keysToRemove.push(key);
+        }
+      }
+    }
+    
+    // Remover as chaves em um loop separado para evitar problemas de índice
+    keysToRemove.forEach(key => localStorage.removeItem(key));
+    
+    console.log(`[UserData] Removidos ${keysToRemove.length} itens antigos do cache local`);
+  } catch (error) {
+    console.warn('[UserData] Erro ao limpar cache local:', error);
   }
 } 
