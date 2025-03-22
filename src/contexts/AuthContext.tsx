@@ -67,67 +67,99 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   }, []);
 
   const login = async (emailOrUsername: string, password: string) => {
+    setIsLoading(true);
     try {
-      console.log('Tentativa de login com:', emailOrUsername, password);
+      console.log('Tentativa de login com:', emailOrUsername);
       // Normalize email/username (trim whitespace and convert to lowercase)
       const normalizedInput = emailOrUsername.trim().toLowerCase();
       
       // Tentar autenticar com o servidor
-      try {
-        const response = await fetch('/login', {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json'
-          },
-          body: JSON.stringify({ 
-            email: normalizedInput, 
-            password 
-          })
-        });
-        
-        if (!response.ok) {
+      const response = await fetch('/api/login', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({ 
+          emailOrUsername: normalizedInput, 
+          password 
+        })
+      });
+      
+      if (!response.ok) {
+        // Se não conseguiu conectar à API, usar o login hardcoded
+        if (response.status === 404 || response.status === 500) {
+          console.warn('API de autenticação indisponível, usando fallback');
+          
+          // Fallback para o método hardcoded
+          const validEmail = 'paullo.celullar2020@gmail.com'.toLowerCase();
+          const validUsername = 'paulocell'.toLowerCase();
+          const validPassword = 'paulocell@admin';
+          
+          if ((normalizedInput === validEmail || normalizedInput === validUsername) && 
+              password === validPassword) {
+            
+            // Criar um usuário "mock" para sessão local
+            const mockUser = {
+              id: '1',
+              name: 'Paulo Cell',
+              email: validEmail
+            };
+            
+            // Definir usuário no estado
+            setUser(mockUser);
+            
+            // Salvar no localStorage
+            localStorage.setItem('pauloCell_user', JSON.stringify(mockUser));
+            console.log('Usuário salvo no localStorage (via fallback):', mockUser);
+            
+            // Mensagem de sucesso
+            toast({
+              title: 'Login realizado com sucesso!',
+              description: 'Bem-vindo ao sistema Paulo Cell. (Modo offline)'
+            });
+            
+            // Redirecionar
+            setTimeout(() => {
+              console.log('Redirecionando para o dashboard...');
+              navigate('/dashboard');
+            }, 300);
+            
+            return;
+          } else {
+            throw new Error('Credenciais inválidas');
+          }
+        } else {
           const errorData = await response.json();
           throw new Error(errorData.message || 'Erro ao fazer login');
         }
-        
-        const userData = await response.json();
-        const user = {
-          id: userData.id,
-          name: userData.name,
-          email: userData.email
-        };
-        
-        // Primeiro definimos o usuário no estado
-        setUser(user);
-        
-        // Em seguida, salvamos no localStorage
-        localStorage.setItem('pauloCell_user', JSON.stringify(user));
-        console.log('Usuário salvo no localStorage:', user);
-        
-        // Exibimos a mensagem de sucesso
-        toast({
-          title: 'Login realizado com sucesso!',
-          description: 'Bem-vindo ao sistema Paulo Cell.'
-        });
-        
-        // Adicionamos um pequeno delay antes de redirecionar para garantir que
-        // o localStorage e o estado do usuário sejam atualizados corretamente
-        setTimeout(() => {
-          console.log('Redirecionando para o dashboard...');
-          navigate('/dashboard');
-        }, 300);
-      } catch (apiError) {
-        console.error('Erro na API de autenticação:', apiError);
-        
-        // Fallback para o método antigo (hardcoded) em caso de erro na API
-        // Isso é temporário durante a migração e deve ser removido posteriormente
-        const validEmail = 'paullo.celullar2020@gmail.com'.toLowerCase();
-        // Removido o fallback hardcoded para credenciais
-        setTimeout(() => {
-          navigate('/dashboard');
-        }, 300);
-        return;
       }
+      
+      const userData = await response.json();
+      const user = {
+        id: userData.id,
+        name: userData.name,
+        email: userData.email
+      };
+      
+      // Primeiro definimos o usuário no estado
+      setUser(user);
+      
+      // Em seguida, salvamos no localStorage
+      localStorage.setItem('pauloCell_user', JSON.stringify(user));
+      console.log('Usuário salvo no localStorage:', user);
+      
+      // Exibimos a mensagem de sucesso
+      toast({
+        title: 'Login realizado com sucesso!',
+        description: 'Bem-vindo ao sistema Paulo Cell.'
+      });
+      
+      // Adicionamos um pequeno delay antes de redirecionar para garantir que
+      // o localStorage e o estado do usuário sejam atualizados corretamente
+      setTimeout(() => {
+        console.log('Redirecionando para o dashboard...');
+        navigate('/dashboard');
+      }, 300);
     } catch (error) {
       console.error('Erro durante o login:', error);
       toast({
