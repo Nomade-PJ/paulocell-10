@@ -1,7 +1,6 @@
 import { Toaster } from "./components/ui/toaster";
 import { Toaster as Sonner } from "./components/ui/sonner";
 import { TooltipProvider } from "./components/ui/tooltip";
-import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { BrowserRouter, Routes, Route, Navigate, Outlet } from "react-router-dom";
 import { useEffect } from "react";
 import { initTrashCleanup } from "./lib/trash-utils";
@@ -39,15 +38,6 @@ import TestReports from './pages/TestReports';
 // Add framer-motion for animations
 import { AnimatePresence } from "framer-motion";
 
-const queryClient = new QueryClient({
-  defaultOptions: {
-    queries: {
-      refetchOnWindowFocus: false,
-      retry: 1
-    }
-  }
-});
-
 // Create a protected route component
 const ProtectedRoute = () => {
   const storedUser = localStorage.getItem('pauloCell_user');
@@ -63,71 +53,69 @@ function App() {
     initTrashCleanup();
   }, []);
   return (
-    <QueryClientProvider client={queryClient}>
-      <TooltipProvider>
-        <BrowserRouter>
-          <DataUpdateEmitter />
-          <AuthProvider>
-            <NotificationProvider>
-              <Toaster />
-              <Routes>
-                <Route path="/" element={<Index />} />
-                <Route path="/login" element={<Login />} />
-                <Route path="/register" element={<Register />} />
+    <TooltipProvider>
+      <BrowserRouter>
+        <DataUpdateEmitter />
+        <AuthProvider>
+          <NotificationProvider>
+            <Toaster />
+            <Routes>
+              <Route path="/" element={<Index />} />
+              <Route path="/login" element={<Login />} />
+              <Route path="/register" element={<Register />} />
+              
+              {/* Protected Routes */}
+              <Route element={<ProtectedRoute />}>
+                <Route path="/dashboard" element={<Dashboard />} />
                 
-                {/* Protected Routes */}
-                <Route element={<ProtectedRoute />}>
-                  <Route path="/dashboard" element={<Dashboard />} />
-                  
-                  {/* Customers */}
-                  <Route path="/customers" element={<Customers />} />
-                  <Route path="/customers/new" element={<NewCustomer />} />
-                  <Route path="/customers/:id" element={<CustomerDetail />} />
-                  <Route path="/customers/edit/:id" element={<EditCustomer />} />
-                  <Route path="/trash-bin" element={<TrashBin />} />
-                  
-                  {/* Devices */}
-                  <Route path="/devices" element={<Devices />} />
-                  <Route path="/devices/new" element={<NewDevice />} />
-                  <Route path="/devices/:id" element={<DeviceDetail />} />
-                  <Route path="/devices/edit/:id" element={<EditDevice />} />
-                  
-                  {/* Services */}
-                  <Route path="/services" element={<Services />} />
-                  <Route path="/services/new" element={<NewService />} />
-                  <Route path="/services/:id" element={<ServiceDetail />} />
-                  <Route path="/services/edit/:id" element={<EditService />} />
-                  
-                  {/* Inventory */}
-                  <Route path="/inventory" element={<Inventory />} />
-                  
-                  {/* Documents */}
-                  <Route path="/documents" element={<Documents />} />
-                  <Route path="/documents/new" element={<NewDocument />} />
-                  <Route path="/documents/:id" element={<DocumentDetail />} />
-                  
-                  {/* Reports */}
-                  <Route path="/reports" element={<Reports />} />
-                  <Route path="/test-reports" element={<TestReports />} />
-                  
-                  {/* Settings */}
-                  <Route path="/settings" element={<Settings />} />
-                  
-                  {/* Demo */}
-                  <Route path="/notification-demo" element={<NotificationDemo />} />
-                  
-                  {/* Reset Statistics */}
-                  <Route path="/reset-statistics" element={<ResetStatistics />} />
-                </Route>
+                {/* Customers */}
+                <Route path="/customers" element={<Customers />} />
+                <Route path="/customers/new" element={<NewCustomer />} />
+                <Route path="/customers/:id" element={<CustomerDetail />} />
+                <Route path="/customers/edit/:id" element={<EditCustomer />} />
+                <Route path="/trash-bin" element={<TrashBin />} />
                 
-                <Route path="*" element={<NotFound />} />
-              </Routes>
-              <Sonner />
-            </NotificationProvider>
-          </AuthProvider>
-        </BrowserRouter>
-      </TooltipProvider>
-    </QueryClientProvider>
+                {/* Devices */}
+                <Route path="/devices" element={<Devices />} />
+                <Route path="/devices/new" element={<NewDevice />} />
+                <Route path="/devices/:id" element={<DeviceDetail />} />
+                <Route path="/devices/edit/:id" element={<EditDevice />} />
+                
+                {/* Services */}
+                <Route path="/services" element={<Services />} />
+                <Route path="/services/new" element={<NewService />} />
+                <Route path="/services/:id" element={<ServiceDetail />} />
+                <Route path="/services/edit/:id" element={<EditService />} />
+                
+                {/* Inventory */}
+                <Route path="/inventory" element={<Inventory />} />
+                
+                {/* Documents */}
+                <Route path="/documents" element={<Documents />} />
+                <Route path="/documents/new" element={<NewDocument />} />
+                <Route path="/documents/:id" element={<DocumentDetail />} />
+                
+                {/* Reports */}
+                <Route path="/reports" element={<Reports />} />
+                <Route path="/test-reports" element={<TestReports />} />
+                
+                {/* Settings */}
+                <Route path="/settings" element={<Settings />} />
+                
+                {/* Demo */}
+                <Route path="/notification-demo" element={<NotificationDemo />} />
+                
+                {/* Reset Statistics */}
+                <Route path="/reset-statistics" element={<ResetStatistics />} />
+              </Route>
+              
+              <Route path="*" element={<NotFound />} />
+            </Routes>
+            <Sonner />
+          </NotificationProvider>
+        </AuthProvider>
+      </BrowserRouter>
+    </TooltipProvider>
   );
 }
 
