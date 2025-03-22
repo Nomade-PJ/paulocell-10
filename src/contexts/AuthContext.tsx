@@ -1,7 +1,7 @@
 import React, { createContext, useContext, useState, useEffect } from 'react';
 import { useRouter } from 'next/router';
 import { toast } from 'react-toastify';
-import { clearLocalStorageCache } from '../services/userDataService';
+import { clearLocalStorageCache, syncPendingData } from '../services/userDataService';
 
 interface User {
   id: string;
@@ -30,16 +30,38 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   // Verificar se o usuário está autenticado ao carregar o contexto
   useEffect(() => {
     const storedUser = localStorage.getItem('user');
+    
     if (storedUser) {
       try {
         const userData = JSON.parse(storedUser);
         setUser(userData);
         console.log('[Auth] Usuário restaurado do localStorage:', userData.name);
+        
+        // Quando restaura o usuário do localStorage, verificar se há dados pendentes
+        // para sincronizar com o servidor imediatamente
+        if (navigator.onLine && userData.id) {
+          console.log('[Auth] Verificando dados pendentes após restaurar sessão');
+          
+          // Atrasar para garantir que outros componentes carreguem primeiro
+          setTimeout(() => {
+            syncPendingData(userData.id)
+              .then(result => {
+                if (result.success && result.succeeded > 0) {
+                  toast.success(`Sincronizado: ${result.succeeded} item(s)`);
+                  console.log('[Auth] Sincronização automática concluída:', result);
+                }
+              })
+              .catch(err => {
+                console.error('[Auth] Erro na sincronização automática:', err);
+              });
+          }, 5000);
+        }
       } catch (e) {
         localStorage.removeItem('user');
         console.error('[Auth] Erro ao restaurar sessão:', e);
       }
     }
+    
     setLoading(false);
   }, []);
 
@@ -77,23 +99,45 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       // Atualizar estado do usuário
       setUser(data.user);
       
-      // Salvar no localStorage
-      localStorage.setItem('user', JSON.stringify(data.user));
-      console.log('[Auth] Login bem-sucedido para:', data.user.name);
-      
       // Limpar cache local antigo para este usuário
       try {
-        console.log('[Auth] Limpando cache local antigo para o usuário');
-        clearLocalStorageCache(data.user.id);
+        console.log('[Auth] Limpando TODOS os dados locais antigos para o usuário');
+        
+        // Limpar todos os dados antigos do localStorage
+        for (let i = 0; i < localStorage.length; i++) {
+          const key = localStorage.key(i);
+          
+          // Remover apenas dados que não estão pendentes para sincronização
+          if (key && key.startsWith(`${data.user.id}_`) && !key.endsWith('_delete')) {
+            try {
+              const value = JSON.parse(localStorage.getItem(key) || '{}');
+              if (!value.pendingSync) {
+                localStorage.removeItem(key);
+                console.log(`[Auth] Removido item ${key} do localStorage`);
+              } else {
+                console.log(`[Auth] Mantido item pendente ${key} para sincronização posterior`);
+              }
+            } catch (e) {
+              // Se não conseguir ler, remover de qualquer forma
+              localStorage.removeItem(key);
+            }
+          }
+        }
+        
+        console.log('[Auth] Limpeza de dados antigos concluída');
       } catch (cacheError) {
         console.warn('[Auth] Erro ao limpar cache:', cacheError);
       }
       
-      // Redirecionar para a página inicial após login
-      router.push('/');
+      // Salvar no localStorage
+      localStorage.setItem('user', JSON.stringify(data.user));
+      console.log('[Auth] Login bem-sucedido para:', data.user.name);
       
       // Mostrar mensagem de boas-vindas
       toast.success(`Bem-vindo, ${data.user.name}!`);
+      
+      // Redirecionar para a página inicial após login
+      router.push('/');
     } catch (err: any) {
       console.error('[Auth] Erro no login:', err);
       setError(err.message);
@@ -104,9 +148,41 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   };
 
   const logout = () => {
+    // Salvar o ID do usuário antes de limpar
+    const userId = user?.id;
+    
+    // Limpar o estado e o localStorage
     setUser(null);
     localStorage.removeItem('user');
+    
+    // Opcional: limpar todos os dados deste usuário do localStorage
+    if (userId) {
+      try {
+        console.log('[Auth] Limpando dados do usuário ao fazer logout');
+        
+        // Pegar todas as chaves do localStorage que pertencem a este usuário
+        const userKeys = [];
+        for (let i = 0; i < localStorage.length; i++) {
+          const key = localStorage.key(i);
+          if (key && key.startsWith(`${userId}_`)) {
+            userKeys.push(key);
+          }
+        }
+        
+        // Remover cada item
+        userKeys.forEach(key => {
+          localStorage.removeItem(key);
+          console.log(`[Auth] Removido ${key} ao fazer logout`);
+        });
+        
+        console.log(`[Auth] Removidos ${userKeys.length} itens do localStorage`);
+      } catch (e) {
+        console.error('[Auth] Erro ao limpar dados do usuário no logout:', e);
+      }
+    }
+    
     console.log('[Auth] Usuário deslogado');
+    toast.info('Você foi desconectado com sucesso.');
     
     // Redirecionar para a página de login
     router.push('/login');
