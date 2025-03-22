@@ -1,5 +1,4 @@
 import React, { createContext, useContext, useState, useEffect } from 'react';
-import { useRouter } from 'next/router';
 import { toast } from 'react-toastify';
 import { clearLocalStorageCache, syncPendingData } from '../services/userDataService';
 
@@ -25,7 +24,11 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const [user, setUser] = useState<User | null>(null);
   const [loading, setLoading] = useState<boolean>(true);
   const [error, setError] = useState<string | null>(null);
-  const router = useRouter();
+
+  // Função para navegar para uma rota
+  const navigateTo = (path: string) => {
+    window.location.href = path;
+  };
 
   // Verificar se o usuário está autenticado ao carregar o contexto
   useEffect(() => {
@@ -137,7 +140,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       toast.success(`Bem-vindo, ${data.user.name}!`);
       
       // Redirecionar para a página inicial após login
-      router.push('/');
+      navigateTo('/');
     } catch (err: any) {
       console.error('[Auth] Erro no login:', err);
       setError(err.message);
@@ -185,7 +188,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     toast.info('Você foi desconectado com sucesso.');
     
     // Redirecionar para a página de login
-    router.push('/login');
+    navigateTo('/login');
   };
 
   return (
