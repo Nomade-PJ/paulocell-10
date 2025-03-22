@@ -20,6 +20,17 @@ interface AuthContextData {
 
 export const AuthContext = createContext<AuthContextData>({} as AuthContextData);
 
+// Hook personalizado para acessar o contexto de autenticação
+export const useAuth = () => {
+  const context = useContext(AuthContext);
+  
+  if (!context) {
+    throw new Error('useAuth deve ser usado dentro de um AuthProvider');
+  }
+  
+  return context;
+};
+
 export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const [user, setUser] = useState<User | null>(null);
   const [loading, setLoading] = useState<boolean>(true);
