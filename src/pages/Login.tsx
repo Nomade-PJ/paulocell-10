@@ -1,59 +1,56 @@
-
 import React, { useState, useEffect } from 'react';
-import { useNavigate, Link } from 'react-router-dom';
+import { useNavigate } from 'react-router-dom';
 import { motion } from 'framer-motion';
-import { z } from 'zod';
-import { useForm } from 'react-hook-form';
-import { zodResolver } from '@hookform/resolvers/zod';
 import { useAuth } from '@/contexts/AuthContext';
 
 // UI Components
-import { Button } from '@/components/ui/button';
 import {
   Card,
   CardContent,
   CardDescription,
-  CardFooter,
   CardHeader,
   CardTitle,
 } from '@/components/ui/card';
-import {
-  Form,
-  FormControl,
-  FormField,
-  FormItem,
-  FormLabel,
-  FormMessage,
-} from '@/components/ui/form';
 import { Input } from '@/components/ui/input';
 import { Skeleton } from '@/components/ui/skeleton';
+import { toast } from 'react-toastify';
+import { CheckCircle } from 'lucide-react';
 
-import { toast } from '@/components/ui/use-toast';
+// Lista de palavras-chave válidas
+const PALAVRAS_CHAVE_VALIDAS = [
+  "paulocell@admin1",
+  "milena@admin2",
+  "nicolas@admin3"
+];
 
-// Icons
-import { EyeIcon, EyeOffIcon, LockIcon, MailIcon } from 'lucide-react';
-
-// Form schema
-const loginFormSchema = z.object({
-  email: z.string().refine(
-    (value) => {
-      // Accept either a valid email or the username 'paulocell'
-      return z.string().email().safeParse(value).success || value === 'paulocell';
-    },
-    {
-      message: 'Digite um e-mail válido ou o nome de usuário "paulocell"',
-    }
-  ),
-  password: z.string().min(8, 'A senha deve ter pelo menos 8 caracteres'),
-});
-
-type LoginFormValues = z.infer<typeof loginFormSchema>;
+// Mapeamento de palavras-chave para dados de usuário
+const USUARIOS_POR_CHAVE = {
+  "paulocell@admin1": {
+    id: "1",
+    name: "Paulo Cell Admin",
+    email: "paulo@admin.com",
+    role: "admin"
+  },
+  "milena@admin2": {
+    id: "2",
+    name: "Milena Admin",
+    email: "milena@admin.com",
+    role: "admin"
+  },
+  "nicolas@admin3": {
+    id: "3",
+    name: "Nicolas Admin",
+    email: "nicolas@admin.com",
+    role: "admin"
+  }
+};
 
 const Login: React.FC = () => {
   const { login } = useAuth();
   const navigate = useNavigate();
+  const [palavraChave, setPalavraChave] = useState('');
+  const [palavraChaveValida, setPalavraChaveValida] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
-  const [showPassword, setShowPassword] = useState(false);
   const [isPageLoading, setIsPageLoading] = useState(true);
 
   useEffect(() => {
@@ -65,24 +62,41 @@ const Login: React.FC = () => {
     return () => clearTimeout(timer);
   }, []);
 
-  const form = useForm<LoginFormValues>({
-    resolver: zodResolver(loginFormSchema),
-    defaultValues: {
-      email: '',
-      password: '',
-    },
-  });
-
-  const onSubmit = async (data: LoginFormValues) => {
-    setIsLoading(true);
-    try {
-      await login(data.email, data.password);
-      // Navigation is handled in the AuthContext
-    } catch (error) {
-      // Error handling is done in the AuthContext
-    } finally {
-      setIsLoading(false);
+  // Verificar a palavra-chave quando ela muda
+  useEffect(() => {
+    if (PALAVRAS_CHAVE_VALIDAS.includes(palavraChave)) {
+      setPalavraChaveValida(true);
+      
+      // Fazer login automático após um pequeno delay
+      setTimeout(async () => {
+        setIsLoading(true);
+        try {
+          // Simular o login com os dados do usuário correspondente
+          const usuarioData = USUARIOS_POR_CHAVE[palavraChave];
+          
+          // Armazenar no localStorage para o AuthContext
+          localStorage.setItem('user', JSON.stringify(usuarioData));
+          
+          // Mostrar mensagem de sucesso
+          toast.success(`Bem-vindo, ${usuarioData.name}!`);
+          
+          // Navegar para a página inicial
+          navigate('/');
+        } catch (error) {
+          console.error('Erro ao fazer login automático:', error);
+          toast.error('Erro ao fazer login automático');
+        } finally {
+          setIsLoading(false);
+          setPalavraChaveValida(false);
+        }
+      }, 1000);
+    } else {
+      setPalavraChaveValida(false);
     }
+  }, [palavraChave, navigate]);
+
+  const handlePalavraChaveChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    setPalavraChave(e.target.value);
   };
 
   if (isPageLoading) {
@@ -112,83 +126,36 @@ const Login: React.FC = () => {
 
         <Card>
           <CardHeader className="space-y-1">
-            <CardTitle className="text-2xl font-bold text-center">Login</CardTitle>
+            <CardTitle className="text-2xl font-bold text-center">Acesso ao Sistema</CardTitle>
             <CardDescription className="text-center">
-              Entre com suas credenciais para acessar o sistema
-              <div className="mt-2 text-sm text-muted-foreground">
-                <strong>Usuário:</strong> paulocell <br />
-                <strong>Senha:</strong> paulocell@admin
-              </div>
+              Insira sua palavra-chave para acessar o sistema
             </CardDescription>
           </CardHeader>
           <CardContent>
-            <Form {...form}>
-              <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4">
-                <FormField
-                  control={form.control}
-                  name="email"
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormLabel>E-mail ou Usuário</FormLabel>
-                      <FormControl>
-                        <div className="relative">
-                          <MailIcon className="absolute left-3 top-2.5 h-5 w-5 text-muted-foreground" />
-                          <Input
-                            placeholder="seu@email.com ou nome de usuário"
-                            className="pl-10"
-                            {...field}
-                          />
-                        </div>
-                      </FormControl>
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
-
-                <FormField
-                  control={form.control}
-                  name="password"
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormLabel>Senha</FormLabel>
-                      <FormControl>
-                        <div className="relative">
-                          <LockIcon className="absolute left-3 top-2.5 h-5 w-5 text-muted-foreground" />
-                          <Input
-                            type={showPassword ? 'text' : 'password'}
-                            placeholder="********"
-                            className="pl-10"
-                            {...field}
-                          />
-                          <Button
-                            type="button"
-                            variant="ghost"
-                            size="icon"
-                            className="absolute right-1 top-1"
-                            onClick={() => setShowPassword(!showPassword)}
-                          >
-                            {showPassword ? (
-                              <EyeOffIcon className="h-5 w-5" />
-                            ) : (
-                              <EyeIcon className="h-5 w-5" />
-                            )}
-                          </Button>
-                        </div>
-                      </FormControl>
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
-
-                <Button
-                  type="submit"
-                  className="w-full"
+            <div className="space-y-4">
+              <div className="relative">
+                <Input
+                  type="text"
+                  placeholder="Insira sua palavra-chave"
+                  value={palavraChave}
+                  onChange={handlePalavraChaveChange}
+                  className={`pr-10 ${palavraChaveValida ? 'border-green-500' : ''}`}
                   disabled={isLoading}
-                >
-                  {isLoading ? 'Entrando...' : 'Entrar'}
-                </Button>
-              </form>
-            </Form>
+                  autoFocus
+                />
+                {palavraChaveValida && (
+                  <div className="absolute right-3 top-2.5">
+                    <CheckCircle className="h-5 w-5 text-green-500" />
+                  </div>
+                )}
+              </div>
+              
+              {isLoading && (
+                <div className="text-center text-sm text-muted-foreground">
+                  Entrando no sistema...
+                </div>
+              )}
+            </div>
           </CardContent>
         </Card>
       </motion.div>
