@@ -80,8 +80,8 @@ const Login: React.FC = () => {
           // Mostrar mensagem de sucesso
           toast.success(`Bem-vindo, ${usuarioData.name}!`);
           
-          // Navegar para a página inicial
-          navigate('/');
+          // Navegar para a página do dashboard em vez da página inicial
+          navigate('/dashboard');
         } catch (error) {
           console.error('Erro ao fazer login automático:', error);
           toast.error('Erro ao fazer login automático');
