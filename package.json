@@ -5,13 +5,13 @@
   "type": "module",
   "scripts": {
     "dev": "vite",
-    "build": "vite build",
-    "build:dev": "vite build --mode development",
+    "build": "node --max-old-space-size=4096 --no-wasm-code-gc node_modules/vite/bin/vite.js build",
+    "build:dev": "node --max-old-space-size=2048 node_modules/vite/bin/vite.js build --mode development",
     "lint": "eslint .",
     "preview": "vite preview",
-    "vercel-build": "vite build",
-    "start": "node server.js",
-    "postinstall": "vite build",
+    "vercel-build": "node --max-old-space-size=4096 node_modules/vite/bin/vite.js build",
+    "start": "node --no-wasm-code-gc server.js",
+    "postinstall": "node --max-old-space-size=2048 node_modules/vite/bin/vite.js build",
     "migrate": "node scripts/migrate.js"
   },
   "dependencies": {
@@ -72,6 +72,7 @@
     "embla-carousel-react": "^8.0.0-rc22",
     "esbuild": "^0.25.1",
     "express": "^4.19.2",
+    "express-session": "^1.18.0",
     "firebase": "^11.4.0",
     "framer-motion": "^11.0.8",
     "geist": "^1.2.2",
@@ -94,6 +95,7 @@
     "sonner": "^1.4.0",
     "tailwind-merge": "^2.2.1",
     "tailwindcss-animate": "^1.0.7",
+    "terser": "^5.30.0",
     "undici": "^7.5.0",
     "uuid": "^9.0.1",
     "vaul": "^0.8.9",
@@ -123,6 +125,6 @@
     "vite": "^5.1.0"
   },
   "engines": {
-    "node": ">=18.0.0"
+    "node": ">=22.0.0"
   }
 }

@@ -1,0 +1,18 @@
+---
+deployment:
+  tasks:
+    # Configuração de deploy para o cPanel
+    # Copiar todos os arquivos para a pasta public_html
+    - export DEPLOYPATH=/home/$(whoami)/public_html/
+    - /bin/cp -R dist/* $DEPLOYPATH
+    
+    # Copiar server.js e arquivos de servidor
+    - /bin/cp server.js $DEPLOYPATH
+    - /bin/mkdir -p $DEPLOYPATH/server
+    - /bin/cp -R server/* $DEPLOYPATH/server
+    
+    # Copiar arquivos essenciais
+    - /bin/cp package.json $DEPLOYPATH
+    
+    # Definir permissões
+    - /bin/chmod 755 $DEPLOYPATH/server.js 
