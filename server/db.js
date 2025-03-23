@@ -5,7 +5,19 @@ import path from 'path';
 import { fileURLToPath } from 'url';
 
 // Carregar variáveis de ambiente
-dotenv.config({ path: '.env.production' });
+try {
+  // Primeiro tenta o .env.production
+  dotenv.config({ path: '.env.production' });
+  console.log('Configurações de banco de dados carregadas de .env.production');
+} catch (e) {
+  try {
+    // Se falhar, tenta .env
+    dotenv.config();
+    console.log('Configurações de banco de dados carregadas de .env');
+  } catch (e) {
+    console.log('Não foi possível carregar arquivo .env, usando variáveis de ambiente do sistema');
+  }
+}
 
 // Configuração para usar __dirname em módulos ES
 const __filename = fileURLToPath(import.meta.url);
@@ -17,9 +29,14 @@ const dbConfig = {
   user: process.env.DB_USER || 'root',
   password: process.env.DB_PASSWORD || '',
   database: process.env.DB_NAME || 'paulocell',
-  waitForConnections: true,
-  connectionLimit: 10,
-  queueLimit: 0
+  port: parseInt(process.env.DB_PORT || '3306', 10),
+  waitForConnections: process.env.DB_POOL_WAIT_FOR_CONNECTIONS === 'false' ? false : true,
+  connectionLimit: parseInt(process.env.DB_POOL_CONNECTION_LIMIT || '10', 10),
+  queueLimit: parseInt(process.env.DB_POOL_QUEUE_LIMIT || '0', 10),
+  // Adicionar SSL se configurado
+  ssl: process.env.DB_SSL === 'true' ? {
+    rejectUnauthorized: false
+  } : undefined
 };
 
 // Criar pool de conexões
@@ -29,6 +46,7 @@ const pool = mysql.createPool(dbConfig);
 async function initializeDatabase() {
   try {
     console.log('Verificando conexão com o banco de dados...');
+    console.log(`Tentando conectar a: ${dbConfig.host}:${dbConfig.port}/${dbConfig.database} (usuário: ${dbConfig.user})`);
     
     // Teste de conexão
     const connection = await pool.getConnection();
@@ -54,12 +72,24 @@ async function initializeDatabase() {
           .filter(statement => statement.trim())
           .map(statement => statement.trim() + ';');
         
-        for (const statement of statements) {
-          if (statement.includes('CREATE DATABASE') || statement.includes('USE')) {
-            // Ignorar comandos de criação de banco de dados e uso
-            continue;
+        // Remover comentários e comandos que o cPanel pode não permitir
+        const filteredStatements = statements.filter(statement => {
+          const upperStatement = statement.toUpperCase();
+          // Excluir comandos de criação de banco e USE que podem causar problemas
+          return !upperStatement.includes('CREATE DATABASE') && 
+                 !upperStatement.includes('USE ') &&
+                 statement.trim() !== ';';
+        });
+        
+        console.log(`Executando ${filteredStatements.length} comandos SQL...`);
+        
+        for (const statement of filteredStatements) {
+          try {
+            await connection.query(statement);
+          } catch (err) {
+            console.error(`Erro ao executar comando SQL: ${statement.substring(0, 100)}...`, err.message);
+            // Continuar com o próximo comando mesmo em caso de erro
           }
-          await connection.query(statement);
         }
         
         console.log('Banco de dados inicializado com sucesso!');

@@ -1,6 +1,13 @@
--- Criação do banco de dados
-CREATE DATABASE IF NOT EXISTS paulocell CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
-USE paulocell;
+-- Esquema do banco de dados Paulo Cell
+
+-- Definições de configuração
+SET NAMES utf8mb4;
+SET FOREIGN_KEY_CHECKS = 0;
+
+-- Comentário: A criação do banco de dados e o comando USE são executados automaticamente pelo cPanel
+-- A tabela será criada no banco de dados já configurado nas Variáveis de Ambiente
+-- CREATE DATABASE IF NOT EXISTS paulocell CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
+-- USE paulocell;
 
 -- Tabela para usuários
 CREATE TABLE IF NOT EXISTS users (
@@ -11,8 +18,10 @@ CREATE TABLE IF NOT EXISTS users (
   role VARCHAR(50) DEFAULT 'user',
   created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
   updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
-  active BOOLEAN DEFAULT TRUE
-);
+  active BOOLEAN DEFAULT TRUE,
+  INDEX idx_email (email),
+  INDEX idx_role (role)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 -- Tabela para dados do usuário (armazenamento persistente)
 CREATE TABLE IF NOT EXISTS user_data (
@@ -25,7 +34,7 @@ CREATE TABLE IF NOT EXISTS user_data (
   updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
   FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE,
   UNIQUE INDEX idx_user_store_key (user_id, store_name, item_key)
-);
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 -- Tabela para clientes
 CREATE TABLE IF NOT EXISTS customers (
@@ -41,8 +50,12 @@ CREATE TABLE IF NOT EXISTS customers (
   birthdate DATE,
   notes TEXT,
   created_at BIGINT,
-  updated_at BIGINT
-);
+  updated_at BIGINT,
+  INDEX idx_name (name),
+  INDEX idx_email (email),
+  INDEX idx_phone (phone),
+  INDEX idx_cpf_cnpj (cpf_cnpj)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 -- Tabela para dispositivos
 CREATE TABLE IF NOT EXISTS devices (
@@ -56,8 +69,10 @@ CREATE TABLE IF NOT EXISTS devices (
   condition_notes TEXT,
   created_at BIGINT,
   updated_at BIGINT,
-  FOREIGN KEY (customer_id) REFERENCES customers(id) ON DELETE CASCADE
-);
+  FOREIGN KEY (customer_id) REFERENCES customers(id) ON DELETE CASCADE,
+  INDEX idx_customer (customer_id),
+  INDEX idx_brand_model (brand, model)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 -- Tabela para serviços
 CREATE TABLE IF NOT EXISTS services (
@@ -76,8 +91,12 @@ CREATE TABLE IF NOT EXISTS services (
   created_at BIGINT,
   updated_at BIGINT,
   FOREIGN KEY (device_id) REFERENCES devices(id) ON DELETE CASCADE,
-  FOREIGN KEY (customer_id) REFERENCES customers(id) ON DELETE CASCADE
-);
+  FOREIGN KEY (customer_id) REFERENCES customers(id) ON DELETE CASCADE,
+  INDEX idx_device (device_id),
+  INDEX idx_customer (customer_id),
+  INDEX idx_status (status),
+  INDEX idx_dates (start_date, completion_date)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 -- Tabela para estoque
 CREATE TABLE IF NOT EXISTS inventory (
@@ -93,8 +112,12 @@ CREATE TABLE IF NOT EXISTS inventory (
   location VARCHAR(100),
   barcode VARCHAR(100),
   created_at BIGINT,
-  updated_at BIGINT
-);
+  updated_at BIGINT,
+  INDEX idx_name (name),
+  INDEX idx_category (category),
+  INDEX idx_barcode (barcode),
+  INDEX idx_quantity (quantity)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 -- Tabela para documentos (notas fiscais, recibos, etc.)
 CREATE TABLE IF NOT EXISTS documents (
@@ -108,8 +131,11 @@ CREATE TABLE IF NOT EXISTS documents (
   created_at BIGINT,
   updated_at BIGINT,
   FOREIGN KEY (customer_id) REFERENCES customers(id) ON DELETE SET NULL,
-  FOREIGN KEY (service_id) REFERENCES services(id) ON DELETE SET NULL
-);
+  FOREIGN KEY (service_id) REFERENCES services(id) ON DELETE SET NULL,
+  INDEX idx_customer (customer_id),
+  INDEX idx_service (service_id),
+  INDEX idx_type (type)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 -- Tabela de notificações
 CREATE TABLE IF NOT EXISTS notifications (
@@ -119,8 +145,11 @@ CREATE TABLE IF NOT EXISTS notifications (
   type ENUM('info', 'warning', 'success', 'error') NOT NULL,
   read BOOLEAN NOT NULL DEFAULT FALSE,
   link TEXT,
-  created_at BIGINT NOT NULL
-);
+  created_at BIGINT NOT NULL,
+  INDEX idx_read (read),
+  INDEX idx_type (type),
+  INDEX idx_created_at (created_at)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 -- Tabela de configurações da empresa
 CREATE TABLE IF NOT EXISTS company_settings (
@@ -135,7 +164,7 @@ CREATE TABLE IF NOT EXISTS company_settings (
   logo TEXT,
   cpf_cnpj VARCHAR(20),
   notes TEXT
-);
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 -- Tabela de configurações de notificações
 CREATE TABLE IF NOT EXISTS notification_settings (
@@ -146,7 +175,7 @@ CREATE TABLE IF NOT EXISTS notification_settings (
   customer_birthday BOOLEAN NOT NULL DEFAULT FALSE,
   email_notifications BOOLEAN NOT NULL DEFAULT TRUE,
   sms_notifications BOOLEAN NOT NULL DEFAULT FALSE
-);
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 -- Tabela de configurações da API
 CREATE TABLE IF NOT EXISTS api_settings (
@@ -154,7 +183,7 @@ CREATE TABLE IF NOT EXISTS api_settings (
   api_key VARCHAR(255),
   environment ENUM('sandbox', 'production') NOT NULL DEFAULT 'sandbox',
   company_id VARCHAR(255)
-);
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 -- Inserir configurações iniciais da empresa se a tabela estiver vazia
 INSERT INTO company_settings (id, name, phone, email, address, city, state, postal_code, cpf_cnpj, notes)
@@ -173,4 +202,7 @@ WHERE NOT EXISTS (SELECT 1 FROM api_settings WHERE id = 1);
 
 -- Inserir usuário padrão para acesso ao sistema (apenas em desenvolvimento)
 INSERT IGNORE INTO users (id, name, email, role) 
-VALUES ('1', 'Paulo Cell', 'paullo.celullar2020@gmail.com', 'admin'); 
+VALUES ('1', 'Paulo Cell', 'paullo.celullar2020@gmail.com', 'admin');
+
+-- Restaurar verificação de chaves estrangeiras
+SET FOREIGN_KEY_CHECKS = 1; 
