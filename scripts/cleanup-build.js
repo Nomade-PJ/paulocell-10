@@ -30,13 +30,17 @@ const filesToRemove = [
   path.join(rootDir, '.env.development'),
   path.join(rootDir, '.env.local'),
   
-  // Outros arquivos que não são necessários em produção
-  path.join(rootDir, '.vercelignore'),
+  // Arquivos específicos do Vercel
   path.join(rootDir, 'vercel.json'),
+  path.join(rootDir, '.vercelignore'),
+  path.join(rootDir, 'VERCEL-DEPLOY.md'),
   
   // Arquivos de documentação que não são necessários em produção
-  path.join(rootDir, 'VERCEL-DEPLOY.md'),
-  path.join(rootDir, 'guia-de-instalacao.html')
+  path.join(rootDir, 'DEPLOY-INSTRUCTIONS.md'),
+  path.join(rootDir, 'guia-de-instalacao.html'),
+  
+  // Outros arquivos desnecessários em produção
+  path.join(rootDir, '.env.example')
 ];
 
 // Remover source maps do diretório de assets
