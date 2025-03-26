@@ -1,0 +1,37 @@
+# Dependências (serão reinstaladas pela Vercel)
+node_modules
+
+# Arquivos de ambiente (use variáveis de ambiente na plataforma Vercel)
+.env
+.env.local
+.env.development
+.env.production
+
+# Arquivos de controle de versão
+.git
+.gitignore
+
+# Builds locais
+dist
+build
+
+# Logs e caches
+logs
+*.log
+npm-debug.log*
+.cache
+.DS_Store
+
+# Arquivos de backup
+backup-scripts
+paulocell-10
+
+# Arquivos de instalação
+node-installer.msi
+
+# Arquivos específicos para desenvolvimento local
+run-dev.bat
+*.bat
+
+# Arquivos desnecessários para produção
+*.msi 

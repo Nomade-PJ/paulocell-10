@@ -40,11 +40,46 @@ import { AnimatePresence } from "framer-motion";
 
 // Create a protected route component
 const ProtectedRoute = () => {
-  const storedUser = localStorage.getItem('pauloCell_user');
-  if (!storedUser) {
+  try {
+    // Verificar localStorage para determinar se o usuário já está autenticado
+    const storedUser = localStorage.getItem('user');
+    const storedToken = localStorage.getItem('token');
+    
+    console.log('Verificando autenticação no ProtectedRoute:', 
+      { usuarioExiste: !!storedUser, tokenExiste: !!storedToken });
+    
+    if (!storedUser || !storedToken) {
+      console.log('Usuário não autenticado, redirecionando para login');
+      return <Navigate to="/login" replace />;
+    }
+    
+    // Tenta fazer parsing do objeto usuário para verificar se é válido
+    try {
+      const userData = JSON.parse(storedUser);
+      if (!userData || !userData.id) {
+        console.log('Dados de usuário inválidos, redirecionando para login');
+        localStorage.removeItem('user');
+        localStorage.removeItem('token');
+        localStorage.removeItem('refreshToken');
+        localStorage.removeItem('sessionId');
+        return <Navigate to="/login" replace />;
+      }
+      
+      // Se chegou até aqui, o usuário está autenticado
+      console.log('Usuário autenticado, permitindo acesso à rota protegida:', userData.name);
+      return <Outlet />;
+    } catch (err) {
+      console.error('Erro ao analisar dados do usuário:', err);
+      localStorage.removeItem('user');
+      localStorage.removeItem('token');
+      localStorage.removeItem('refreshToken');
+      localStorage.removeItem('sessionId');
+      return <Navigate to="/login" replace />;
+    }
+  } catch (error) {
+    console.error('Erro inesperado na verificação de autenticação:', error);
     return <Navigate to="/login" replace />;
   }
-  return <Outlet />;
 };
 
 function App() {

@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect, lazy, Suspense } from 'react';
 import { motion } from 'framer-motion';
 import { useNavigate } from 'react-router-dom';
@@ -15,13 +14,23 @@ const Index = () => {
   const [isLoading, setIsLoading] = useState(true);
 
   useEffect(() => {
+    // Verificar se o usuário já está autenticado ao carregar a página
+    const storedUser = localStorage.getItem('user');
+    const storedToken = localStorage.getItem('token');
+    
+    if (storedUser && storedToken) {
+      // Se já estiver autenticado, redirecionar para o dashboard
+      console.log('Usuário já autenticado, redirecionando para o dashboard');
+      navigate('/dashboard');
+    }
+
     // Simular um pequeno delay para garantir que o carregamento dos recursos básicos seja concluído
     const timer = setTimeout(() => {
       setIsLoading(false);
     }, 500);
 
     return () => clearTimeout(timer);
-  }, []);
+  }, [navigate]);
 
   const handleDeveloperContact = () => {
     setDeveloperModalOpen(true);
