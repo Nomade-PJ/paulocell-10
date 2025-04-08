@@ -1,7 +1,11 @@
-// Este arquivo serve como ponto de entrada temporário
-// e redireciona para o aplicativo real
 
-import { redirect } from './redirect.js';
+import React from 'react'
+import ReactDOM from 'react-dom/client'
+import App from './App'
+import './styles.css'
 
-// Redireciona para a aplicação real
-window.location.href = './Paulo Cell/'; 
+ReactDOM.createRoot(document.getElementById('root')).render(
+  <React.StrictMode>
+    <App />
+  </React.StrictMode>
+)
