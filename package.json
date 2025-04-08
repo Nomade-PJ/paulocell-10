@@ -29,6 +29,7 @@
     "lovable-tagger": "^1.1.8",
     "mongoose": "^8.2.0",
     "multer": "^1.4.5-lts.1",
+    "react-router-dom": "^6.22.2",
     "socket.io": "^4.7.2"
   },
   "devDependencies": {

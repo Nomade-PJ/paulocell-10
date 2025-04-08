@@ -1,25 +1,9 @@
-/**
- * Componente principal da aplicação
- * Integra o ErrorBoundary e NetworkMonitor para garantir operação 100% online
- */
 
-import React, { Suspense, lazy } from 'react';
+import React from 'react';
 import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
-import ErrorBoundary from './components/ErrorBoundary';
-import NetworkMonitor from './components/NetworkMonitor';
 import { AuthProvider } from './contexts/AuthContext';
-import ConnectionStatus from './components/ConnectionStatus';
 
-// Carregamento preguiçoso de componentes para melhor performance
-const Login = lazy(() => import('./pages/Login'));
-const Dashboard = lazy(() => import('./pages/Dashboard'));
-const Inventory = lazy(() => import('./pages/Inventory'));
-const Customers = lazy(() => import('./pages/Customers'));
-const Orders = lazy(() => import('./pages/Orders'));
-const Settings = lazy(() => import('./pages/Settings'));
-const NotFound = lazy(() => import('./pages/NotFound'));
-
-// Página de carregamento para componentes carregados preguiçosamente
+// Página de carregamento temporária
 const LoadingPage = () => (
   <div className="loading-container">
     <div className="loading-spinner"></div>
@@ -27,96 +11,33 @@ const LoadingPage = () => (
   </div>
 );
 
-// Componente de fallback para o ErrorBoundary
-const ErrorFallback = ({ error, resetErrorBoundary }) => (
-  <div className="error-container">
-    <h2>Algo deu errado</h2>
-    <p>Ocorreu um erro inesperado. Nossa equipe foi notificada e está trabalhando para resolver o problema.</p>
-    <p className="error-details">{error?.message}</p>
-    <button onClick={resetErrorBoundary}>Tentar novamente</button>
+// Página de login temporária
+const Login = () => (
+  <div className="flex min-h-screen items-center justify-center bg-gray-100">
+    <div className="w-full max-w-md rounded-lg bg-white p-8 shadow-md">
+      <h1 className="mb-6 text-center text-2xl font-bold text-gray-800">Paulo Cell</h1>
+      <p className="text-center">Sistema de gestão para assistência técnica</p>
+      <div className="mt-6">
+        <button className="w-full rounded bg-blue-500 px-4 py-2 text-white hover:bg-blue-600">
+          Entrar
+        </button>
+      </div>
+    </div>
   </div>
 );
 
-// Componente que exige autenticação
-const PrivateRoute = ({ children }) => {
-  const token = sessionStorage.getItem('authToken');
-  return token ? children : <Navigate to="/login" replace />;
-};
-
 const App = () => {
-  // Handler para erros críticos
-  const handleError = (error, errorInfo) => {
-    console.error('Erro capturado pelo ErrorBoundary:', error, errorInfo);
-    
-    // Aqui poderia ser implementado envio para sistema de monitoramento
-    // como Sentry, LogRocket, etc.
-  };
-
   return (
-    <ErrorBoundary onError={handleError} fallback={<ErrorFallback />}>
+    <AuthProvider>
       <Router>
-        <AuthProvider>
-          {/* Monitor de status de rede */}
-          <NetworkMonitor autoHideDelay={5000} />
-          
-          {/* Indicador de status da conexão */}
-          <ConnectionStatus />
-          
-          <Suspense fallback={<LoadingPage />}>
-            <Routes>
-              {/* Rotas públicas */}
-              <Route path="/login" element={<Login />} />
-              
-              {/* Rotas privadas */}
-              <Route 
-                path="/" 
-                element={
-                  <PrivateRoute>
-                    <Dashboard />
-                  </PrivateRoute>
-                } 
-              />
-              <Route 
-                path="/inventory" 
-                element={
-                  <PrivateRoute>
-                    <Inventory />
-                  </PrivateRoute>
-                } 
-              />
-              <Route 
-                path="/customers" 
-                element={
-                  <PrivateRoute>
-                    <Customers />
-                  </PrivateRoute>
-                } 
-              />
-              <Route 
-                path="/orders" 
-                element={
-                  <PrivateRoute>
-                    <Orders />
-                  </PrivateRoute>
-                } 
-              />
-              <Route 
-                path="/settings" 
-                element={
-                  <PrivateRoute>
-                    <Settings />
-                  </PrivateRoute>
-                } 
-              />
-              
-              {/* Página 404 */}
-              <Route path="*" element={<NotFound />} />
-            </Routes>
-          </Suspense>
-        </AuthProvider>
+        <Routes>
+          <Route path="/login" element={<Login />} />
+          <Route path="/" element={<Navigate to="/login" replace />} />
+          <Route path="*" element={<Login />} />
+        </Routes>
       </Router>
-    </ErrorBoundary>
+    </AuthProvider>
   );
 };
 
-export default App; 
+export default App;
