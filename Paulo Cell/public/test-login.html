@@ -1,0 +1,135 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Teste de Login - Paulo Cell</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            max-width: 500px;
+            margin: 0 auto;
+            padding: 20px;
+        }
+        .form-group {
+            margin-bottom: 15px;
+        }
+        label {
+            display: block;
+            margin-bottom: 5px;
+            font-weight: bold;
+        }
+        input {
+            width: 100%;
+            padding: 8px;
+            box-sizing: border-box;
+        }
+        button {
+            background-color: #4CAF50;
+            color: white;
+            padding: 10px 15px;
+            border: none;
+            cursor: pointer;
+            font-size: 16px;
+        }
+        button:hover {
+            background-color: #45a049;
+        }
+        #result {
+            margin-top: 20px;
+            padding: 10px;
+            border: 1px solid #ddd;
+            background-color: #f9f9f9;
+            display: none;
+        }
+        pre {
+            white-space: pre-wrap;
+            word-wrap: break-word;
+        }
+    </style>
+</head>
+<body>
+    <h1>Teste de Login - Paulo Cell</h1>
+    
+    <div class="form-group">
+        <label for="emailOrUsername">Email ou Usuário:</label>
+        <input type="text" id="emailOrUsername" value="paulocell">
+    </div>
+    
+    <div class="form-group">
+        <label for="password">Senha:</label>
+        <input type="password" id="password" value="paulocell@admin">
+    </div>
+    
+    <button onclick="testLogin()">Fazer Login</button>
+    <button onclick="testHardcoded()">Usar Login Direto</button>
+    
+    <div id="result">
+        <h3>Resultado:</h3>
+        <pre id="resultContent"></pre>
+    </div>
+
+    <script>
+        async function testLogin() {
+            const emailOrUsername = document.getElementById('emailOrUsername').value;
+            const password = document.getElementById('password').value;
+            
+            try {
+                const response = await fetch('/api/auth/login', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({ emailOrUsername, password }),
+                    credentials: 'include'
+                });
+                
+                const resultElement = document.getElementById('result');
+                const resultContent = document.getElementById('resultContent');
+                
+                resultElement.style.display = 'block';
+                
+                if (response.ok) {
+                    const data = await response.json();
+                    resultContent.textContent = 'Login bem-sucedido!\n\nDados do usuário:\n' + JSON.stringify(data, null, 2);
+                    resultElement.style.backgroundColor = '#e6ffe6';
+                } else {
+                    const errorData = await response.json();
+                    resultContent.textContent = 'Erro no login:\n' + JSON.stringify(errorData, null, 2);
+                    resultElement.style.backgroundColor = '#ffebeb';
+                }
+            } catch (error) {
+                const resultElement = document.getElementById('result');
+                const resultContent = document.getElementById('resultContent');
+                
+                resultElement.style.display = 'block';
+                resultElement.style.backgroundColor = '#ffebeb';
+                resultContent.textContent = 'Erro ao conectar ao servidor:\n' + error.message;
+            }
+        }
+        
+        function testHardcoded() {
+            // Login direto (hardcoded) usando localStorage
+            const user = {
+                id: '1',
+                name: 'Paulo Cell',
+                email: 'paullo.celullar2020@gmail.com'
+            };
+            
+            localStorage.setItem('pauloCell_user', JSON.stringify(user));
+            
+            const resultElement = document.getElementById('result');
+            const resultContent = document.getElementById('resultContent');
+            
+            resultElement.style.display = 'block';
+            resultElement.style.backgroundColor = '#e6ffe6';
+            resultContent.textContent = 'Login direto realizado!\n\nUsuário salvo no localStorage:\n' + JSON.stringify(user, null, 2);
+            
+            // Redirecionar para o dashboard após 2 segundos
+            setTimeout(() => {
+                window.location.href = '/dashboard';
+            }, 2000);
+        }
+    </script>
+</body>
+</html> 
